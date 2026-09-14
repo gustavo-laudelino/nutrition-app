@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: nutrition-api
+
+server:
+  port: ${SERVER_PORT:8081}
+
+---
+# Permite iniciar sem banco enquanto o perfil postgres nao estiver ativo.
+spring:
+  config:
+    activate:
+      on-profile: "!postgres"
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+
+---
+spring:
+  config:
+    activate:
+      on-profile: postgres
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
