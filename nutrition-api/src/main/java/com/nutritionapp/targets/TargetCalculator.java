@@ -13,7 +13,7 @@ public class TargetCalculator {
         var reference = request.referenceEstimateKcal();
         var prescription = new Prescription(prescribed, reference,
                 prescribed == null || reference == null ? null : round(prescribed.subtract(reference)));
-        var macros = macroCalculator.calculate(request.patient(), prescribed, request.macros());
+        var macros = macroCalculator.calculate(prescribed, request.macros());
         var targets = new NutrientTargets(prescribed,
                 macros.carbohydrate() == null ? null : macros.carbohydrate().grams(),
                 macros.protein() == null ? null : macros.protein().grams(),

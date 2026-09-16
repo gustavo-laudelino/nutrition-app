@@ -87,10 +87,9 @@ Métodos de macros:
 
 - `NONE` ou escolha ausente: nenhuma meta.
 - `PERCENTAGE`: exige **prescrição**, não apenas estimativa. Todos os percentuais não negativos e soma exatamente 100. Conversão 4/4/9 kcal/g.
-- `MANUAL`: gramas, ao menos um campo; metas parciais válidas.
-- `PER_KG`: exige `patient.weightKg` e um ou ambos os fatores de proteína/gordura. Carboidrato em g/kg continua sem regra e é rejeitado.
+- `MANUAL` (gramas digitados) e `PER_KG` (g/kg, "fórmula de bolso" de macros) foram **removidos** em 16/09 e são rejeitados; o pedido não aceita mais `patient`.
 
-Os campos `carbohydrate`, `protein` e `fat` usam a unidade do método. Não há fatores automáticos, carboidrato por diferença, ajuste de prescrição pela soma dos macros ou obrigatoriedade de que kcal manuais de macros fechem com a prescrição. Zero é meta explícita; null é ausência.
+Os campos `carbohydrate`, `protein` e `fat` são percentuais da prescrição. Não há fatores automáticos, carboidrato por diferença ou ajuste da prescrição pela soma dos macros. Zero é meta explícita; null é ausência.
 
 ## Composição
 

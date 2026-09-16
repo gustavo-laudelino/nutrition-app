@@ -58,12 +58,11 @@ class CalculatorApiTest {
     }
     @ParameterizedTest @ValueSource(strings={
         "{\"prescribedEnergyKcal\":0}", "{\"prescribedEnergyKcal\":-1}", "{\"referenceEstimateKcal\":0}",
-        "{\"patient\":{\"weightKg\":-1},\"macros\":{\"method\":\"PER_KG\",\"protein\":1.8}}",
-        "{\"patient\":{\"heightCm\":0}}", "{\"patient\":{\"age\":131}}",
+        "{\"macros\":{\"method\":\"PER_KG\",\"protein\":1.8}}", "{\"patient\":{\"weightKg\":80}}",
         "{\"referenceEstimateKcal\":2437,\"macros\":{\"method\":\"PERCENTAGE\",\"carbohydrate\":50,\"protein\":20,\"fat\":30}}",
         "{\"prescribedEnergyKcal\":2000,\"macros\":{\"method\":\"PERCENTAGE\",\"carbohydrate\":50,\"protein\":20,\"fat\":29.9999}}",
-        "{\"macros\":{\"method\":\"MANUAL\",\"protein\":-1}}",
-        "{\"macros\":{\"method\":\"PER_KG\",\"carbohydrate\":3}}", "{\"macros\":{}}"})
+        "{\"macros\":{\"method\":\"MANUAL\",\"protein\":150}}",
+        "{\"macros\":{}}"})
     void rejectsIncompatibleTargetInputs(String body) throws Exception {
         mvc.perform(post("/api/target-calculations").contentType(MediaType.APPLICATION_JSON).content(body))
           .andExpect(status().isBadRequest()).andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
