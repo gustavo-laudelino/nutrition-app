@@ -1,0 +1,208 @@
+<header class="topbar">
+  <a class="brand" href="/" aria-label="Nutrição, página inicial"><span class="brand-icon">n</span> nutrição<span class="brand-dot">.</span></a>
+  <span class="topbar-label">ESPAÇO DO NUTRICIONISTA</span>
+  <span class="avatar" aria-hidden="true">N</span>
+</header>
+
+<main>
+  <div class="page-heading">
+    <div><p class="eyebrow">PLANEJAMENTO ALIMENTAR</p><h1>Uma refeição, em equilíbrio.</h1><p class="lead">Monte a dieta livremente. Defina metas quando fizer sentido para o seu planejamento.</p></div>
+    <span class="page-tag"><span></span> Calculadora de dieta</span>
+  </div>
+
+  <div class="workspace">
+    <aside>
+      <form [formGroup]="form" (ngSubmit)="updateTargets()" novalidate class="planning-form">
+        <section class="panel planning-panel" aria-labelledby="patient-heading">
+        <div class="section-heading"><span class="step">01</span><h2 id="patient-heading">Paciente</h2><span class="optional-tag">Opcional</span><app-info-tip tipId="help-0" text="Preencha os dados necessários ao método escolhido. Você pode começar diretamente pelos alimentos."></app-info-tip></div>
+        
+        <div class="patient-details">
+
+          <div formGroupName="patient" class="fields">
+            <label>Nome<input formControlName="name" placeholder="Nome do paciente" autocomplete="off"></label>
+            <div class="field-pair">
+              <label>Peso (kg)<input formControlName="weightKg" type="number" step="any" placeholder="80"></label>
+              <label>Altura (cm)<input formControlName="heightCm" type="number" step="any" placeholder="175"></label>
+            </div>
+            <div class="field-pair">
+              <label>Idade (anos)<input formControlName="age" type="number" step="1" placeholder="30"></label>
+              <label>Sexo<select formControlName="sex"><option value="UNSPECIFIED">Não informado</option><option value="FEMALE">Feminino</option><option value="MALE">Masculino</option></select></label>
+            </div>
+            <div class="field-with-help"><label>Objetivo do paciente<select formControlName="goal" aria-label="Objetivo do paciente">
+              <option [ngValue]="null">Não informado</option><option value="WEIGHT_LOSS">Perda de peso</option><option value="MAINTENANCE">Manutenção</option><option value="WEIGHT_GAIN">Ganho de peso</option>
+            </select></label><app-info-tip tipId="help-1" text="O objetivo é contexto para sua decisão. Não altera as calorias automaticamente."></app-info-tip></div>
+            <div class="field-with-help"><label>Atividade física · DRI<select formControlName="driActivity" aria-label="Atividade DRI 2023">
+              <option [ngValue]="null">Selecione a categoria DRI</option>
+              <option value="INACTIVE">Inativo</option><option value="LOW_ACTIVE">Pouco ativo</option>
+              <option value="ACTIVE">Ativo</option><option value="VERY_ACTIVE">Muito ativo</option>
+            </select></label><app-info-tip tipId="help-2" text="Categoria usada somente pela DRI. MVP para adultos a partir de 19 anos."></app-info-tip></div>
+          </div>
+        </div>
+        </section>
+        <section class="panel planning-panel" aria-labelledby="estimate-heading">
+        <div class="section-heading"><span class="step">02</span><h2 id="estimate-heading">Estimativa energética</h2></div>
+        <div formGroupName="estimation" class="fields">
+          @switch (estimationMethod) {
+            @case ('DRI_2023') {
+              <div class="method-help"><span>DRI 2023</span><app-info-tip tipId="help-3" text="DRI 2023 · estimativa automática ao preencher sexo, idade, peso, altura e atividade no perfil. A categoria seleciona a equação de EER, em kcal/dia."></app-info-tip></div>
+            }
+            @case ('FAO') {
+              <div class="method-help"><span>FAO/WHO/UNU</span><app-info-tip tipId="help-4" text="Adultos 19+. Informe peso, idade e sexo. Informe o PAL próprio da FAO; a atividade DRI não é convertida. O PAL será aplicado à TMB."></app-info-tip></div>
+              <div class="field-with-help"><label>PAL FAO<input formControlName="faoPal" aria-label="PAL FAO" type="number" step="0.01" placeholder="Informe o PAL"></label><app-info-tip tipId="help-5" text="Sedentário/leve: 1,40–1,69; ativo/moderado: 1,70–1,99; vigoroso: 2,00–2,40. Escolha o valor com até duas casas decimais."></app-info-tip></div>
+            }
+            @case ('PER_KG') {
+              <div class="field-with-help"><label>Fator energético (kcal/kg)<input formControlName="kcalPerKg" type="number" step="any" placeholder="Informe o fator"></label><app-info-tip tipId="help-6" text="Define diretamente a meta prescrita: peso × fator escolhido por você. Referências: perda 20–25; manutenção 25–30; ganho 30–35 kcal/kg. Não há seleção automática."></app-info-tip></div>
+            }
+          }
+        </div>
+        @if (estimationMethod !== 'PER_KG' && (estimate() || estimateErrors().length)) {
+          <button type="button" class="secondary-button estimate-button" (click)="updateEstimate()" [disabled]="estimateLoading()">{{ estimateLoading() ? 'Calculando estimativa…' : 'Recalcular estimativa' }}</button>
+        }
+        @if (estimationMethod !== 'PER_KG' && estimateErrors().length) {
+          <div class="target-error" role="alert"><strong>Estimativa não calculada</strong><ul>@for (error of estimateErrors(); track $index) { <li>{{ error }}</li> }</ul><p>A prescrição manual e a composição da dieta continuam disponíveis.</p></div>
+        }
+        @if (estimate(); as value) {
+          <div class="estimate-preview">
+            <span>Estimativa · {{ estimateLabels[value.method] }}</span><strong>{{ value.estimatedKcal | number:'1.0-2' }} kcal/dia</strong>
+            @if (value.driActivity) { <span>Atividade DRI: {{ driLabels[value.driActivity] }}</span> }
+            @if (value.basalKcal !== null) { <span>TMB: {{ value.basalKcal | number:'1.0-2' }} kcal/dia · PAL {{ value.faoPal | number:'1.0-2' }}</span> }
+            @if (value.faoActivity) { <span>{{ faoLabels[value.faoActivity] }}</span> }
+            <p>Este valor ainda não é a meta prescrita.</p>
+            <button type="button" class="secondary-button" (click)="useEstimateAsTarget()" [disabled]="estimateLoading()">Usar estimativa como meta</button>
+          </div>
+        }
+        <button type="button" class="text-button" (click)="alternativeMethodsVisible.set(!alternativeMethodsVisible())" [attr.aria-expanded]="alternativeMethodsVisible()" aria-controls="alternative-methods">Calcular estimativa energética com outra fórmula</button>
+        @if (alternativeMethodsVisible()) {
+          <div id="alternative-methods" formGroupName="estimation" class="fields">
+            <label>Método de estimativa<select formControlName="method" aria-label="Método de estimativa">
+              <option value="DRI_2023">DRI 2023 · padrão</option>
+              <option value="FAO">FAO/WHO/UNU</option><option value="PER_KG">Fórmula de bolso · kcal/kg</option>
+            </select></label>
+          </div>
+        }
+        </section>
+        <section class="panel planning-panel" aria-labelledby="prescription-heading">
+        <div class="section-heading"><span class="step">03</span><h2 id="prescription-heading">Meta prescrita</h2></div>
+        @if (estimationMethod === 'PER_KG' && estimateLoading()) { <p class="method-note" role="status">Calculando meta pela fórmula de bolso…</p> }
+        @if (estimationMethod === 'PER_KG' && estimateErrors().length) {
+          <div class="target-error" role="alert"><strong>Meta não calculada</strong><ul>@for (error of estimateErrors(); track $index) { <li>{{ error }}</li> }</ul><button type="button" class="text-button" (click)="updateEstimate()">Tentar novamente</button></div>
+        }
+        <div class="fields">
+          <div class="field-with-help"><label>Meta prescrita (kcal/dia)<input formControlName="prescribedEnergyKcal" type="number" step="any" placeholder="Sem meta calórica"></label><app-info-tip tipId="help-7" text="Informe o valor que deseja prescrever. Pode ser igual, maior ou menor que a estimativa. Deixe vazio para montar a dieta sem meta calórica."></app-info-tip></div>
+          @if (form.controls.prescribedEnergyKcal.value !== null) { <button type="button" class="text-button" (click)="form.controls.prescribedEnergyKcal.setValue(null)">Remover meta calórica</button> }
+        </div>
+        @if (targets(); as definition) {
+          @if (definition.prescription.differenceKcal !== null) {
+            <div class="prescription-difference">Meta prescrita − estimativa: <strong>{{ definition.prescription.differenceKcal | number:'1.0-2' }} kcal/dia</strong></div>
+          }
+        }
+        </section>
+        <section class="panel planning-panel" aria-labelledby="macros-heading">
+        <div class="section-heading"><span class="step">04</span><h2 id="macros-heading">Metas de macros</h2></div>
+        <div formGroupName="macros" class="fields">
+          <label>Definir metas de macronutrientes<select formControlName="method" aria-label="Método das metas de macros">
+            <option value="NONE">Sem metas de macros</option><option value="PERCENTAGE">Distribuir por percentual</option>
+            <option value="PER_KG">Cálculo de bolso · g/kg</option><option value="MANUAL">Informar gramas manualmente</option>
+          </select></label>
+          @if (macroMethod !== 'NONE') {
+            @if (macroMethod === 'PERCENTAGE') { <div class="method-help"><span>Orientações</span><app-info-tip tipId="help-8" text="Exige uma meta prescrita. A estimativa sozinha não é usada. Os três percentuais devem somar 100%."></app-info-tip></div> }
+            @if (macroMethod === 'MANUAL') { <div class="method-help"><span>Orientações</span><app-info-tip tipId="help-9" text="Preencha apenas os nutrientes desejados. Campo vazio significa sem meta; zero define uma meta de 0 g."></app-info-tip></div> }
+            @if (macroMethod === 'PER_KG') { <div class="method-help"><span>Orientações</span><app-info-tip tipId="help-10" text="Informe o peso e um ou ambos os fatores. Carboidrato em g/kg ainda não está disponível."></app-info-tip></div> }
+            <div class="fields macro-fields">
+              @if (macroMethod !== 'PER_KG') { <label>Carboidratos ({{ macroMethod === 'PERCENTAGE' ? '%' : 'g' }})<input formControlName="carbohydrate" aria-label="Meta de carboidratos" type="number" step="any" placeholder="Sem meta"></label> }
+              <label>Proteínas ({{ macroMethod === 'PERCENTAGE' ? '%' : macroMethod === 'PER_KG' ? 'g/kg' : 'g' }})<input formControlName="protein" aria-label="Meta de proteínas" type="number" step="any" placeholder="Sem meta"></label>
+              <label>Gorduras ({{ macroMethod === 'PERCENTAGE' ? '%' : macroMethod === 'PER_KG' ? 'g/kg' : 'g' }})<input formControlName="fat" aria-label="Meta de gorduras" type="number" step="any" placeholder="Sem meta"></label>
+            </div>
+            @if (macroMethod === 'PER_KG') { <div class="method-help"><span>Orientações</span><app-info-tip tipId="help-11" text="Referências: proteína 0,8–1,2 g/kg (sedentários) ou 1,6–2,2 g/kg (hipertrofia/preservação); gordura 0,6–1,0 g/kg. Nenhum fator é escolhido automaticamente."></app-info-tip></div> }
+          }
+        </div>
+        @if (targets(); as definition) {
+          <div class="macro-preview">
+            @if (definition.macros.carbohydrate; as macro) { <p>Carboidratos <strong>{{ macro.grams | number:'1.0-2' }} g · {{ macro.energyKcal | number:'1.0-2' }} kcal</strong></p> }
+            @if (definition.macros.protein; as macro) { <p>Proteínas <strong>{{ macro.grams | number:'1.0-2' }} g · {{ macro.energyKcal | number:'1.0-2' }} kcal</strong></p> }
+            @if (definition.macros.fat; as macro) { <p>Gorduras <strong>{{ macro.grams | number:'1.0-2' }} g · {{ macro.energyKcal | number:'1.0-2' }} kcal</strong></p> }
+          </div>
+        }
+        @if (targetErrors().length) {
+          <div class="target-error" role="alert"><strong>Metas ainda não aplicadas</strong><ul>@for (error of targetErrors(); track $index) { <li>{{ error }}</li> }</ul><p>Você pode continuar montando a dieta. Os totais consumidos continuam sendo calculados.</p></div>
+        }
+        @if (form.controls.prescribedEnergyKcal.value !== null || macroMethod !== 'NONE') {
+          <button class="primary-button apply-targets" type="submit" [disabled]="targetsLoading()">{{ targetsLoading() ? 'Atualizando metas…' : 'Atualizar metas' }}</button>
+        }
+        </section>
+      </form>
+      <p class="privacy-note">Planejamento temporário. Os dados não são salvos ao fechar ou recarregar a página.</p>
+    </aside>
+    <div class="main-column">
+      @if (errors().length) {
+        <div class="error-banner" role="alert"><strong>Confira os dados informados</strong><ul>@for (error of errors(); track $index) { <li>{{ error }}</li> }</ul><button class="text-button" (click)="calculate()">Tentar novamente</button></div>
+      }
+
+      <section class="summary" aria-label="Resumo nutricional" [attr.aria-busy]="calculating()">
+        <div class="summary-heading"><h2>Seu planejamento, em números</h2><span class="summary-status" role="status">{{ calculating() ? 'Atualizando composição…' : result() ? 'Composição atualizada' : 'Aguardando cálculo' }}</span></div>
+        <div class="metric-grid">
+          @for (metric of metrics; track metric.key) {
+            <article class="metric-card" [class]="'metric-card ' + metric.css">
+              <div class="metric-label"><span class="dot"></span>{{ metric.label }}</div>
+              @if (result(); as response) {
+                <p class="metric-value">{{ response.totals[metric.key].consumed | number:'1.0-2' }} <span>{{ metric.unit }}</span></p>
+                @if (response.totals[metric.key].target !== null) {
+                  <p class="metric-target">Meta: {{ response.totals[metric.key].target | number:'1.0-2' }} {{ metric.unit }}</p>
+                  <div class="metric-remaining" [class.exceeded]="(response.totals[metric.key].remaining ?? 0) < 0">Restante <strong>{{ response.totals[metric.key].remaining | number:'1.0-2' }} {{ metric.unit }}</strong></div>
+                } @else { <p class="metric-target no-target">Consumido · sem meta definida</p> }              } @else {
+                <p class="metric-value empty-value">— <span>{{ metric.unit }}</span></p><p class="metric-target">Aguardando cálculo</p>
+              }
+            </article>
+          }
+        </div>
+      </section>
+
+      <section class="panel catalog-panel">
+        <div class="section-title-row"><div class="section-heading"><span class="step">05</span><h2>Escolha os alimentos</h2></div><span class="subtle-label">Valores por 100 g</span></div>
+        <form class="search" (ngSubmit)="loadFoods()" novalidate>
+          <span class="search-icon" aria-hidden="true">⌕</span>
+          <input aria-label="Buscar alimento" name="search" [ngModel]="query" (ngModelChange)="searchChanged($event)" placeholder="Busque por arroz, feijão, frango…" autocomplete="off">
+          @if (query) { <button type="button" class="secondary-button" (click)="searchChanged('')">Limpar</button> }
+        </form>
+        @if (!query.trim()) { <p class="hint">Digite para buscar alimentos e ver os resultados.</p> }
+        @if (catalogError()) { <div class="inline-error" role="alert">{{ catalogError() }} <button class="text-button" (click)="loadFoods()">Tentar novamente</button></div> }
+        @if (catalogLoading()) { <p class="loading-note" role="status">Buscando alimentos…</p> }
+        @if (catalog(); as page) {
+          @if (page.items[0]?.source === 'SYNTHETIC_DEVELOPMENT') { <p class="demo-notice">Catálogo de demonstração: os valores são fictícios.</p> }
+          <div class="table-scroll" [attr.aria-busy]="catalogLoading()">
+            <table class="food-table"><thead><tr><th>Alimento</th><th>kcal</th><th>Carb.</th><th>Prot.</th><th>Gord.</th><th><span class="sr-only">Ação</span></th></tr></thead>
+              <tbody>@for (food of page.items; track food.id) {
+                <tr><td><strong>{{ food.name }}</strong><small>{{ food.source }}@if (food.sourceCode) { · {{ food.sourceCode }} }</small></td><td>{{ food.energyKcal | number:'1.0-2' }}</td><td>{{ food.carbohydrateG | number:'1.0-2' }} g</td><td>{{ food.proteinG | number:'1.0-2' }} g</td><td>{{ food.fatG | number:'1.0-2' }} g</td><td><button class="add-button" (click)="addFood(food)" [disabled]="catalogLoading()" [attr.aria-label]="'Adicionar ' + food.name"><span aria-hidden="true">+</span> Adicionar</button></td></tr>
+              } @empty { <tr><td colspan="6" class="empty-catalog">Nenhum alimento encontrado. Experimente outro nome.</td></tr> }</tbody>
+            </table>
+          </div>
+          <div class="pagination"><span>{{ page.totalElements }} alimentos encontrados</span><div><button class="page-button" (click)="loadFoods(page.page - 1)" [disabled]="page.page === 0 || catalogLoading()" aria-label="Página anterior">←</button><span>Página {{ page.page + 1 }}</span><button class="page-button" (click)="loadFoods(page.page + 1)" [disabled]="(page.page + 1) * page.size >= page.totalElements || catalogLoading()" aria-label="Próxima página">→</button></div></div>
+        }
+      </section>
+
+      <section class="panel meal-panel">
+        <div class="section-title-row"><div class="section-heading"><h2>Composição da dieta</h2><span class="count-badge">{{ portions().length }}</span></div><span class="subtle-label">Ajuste as porções em gramas</span></div>
+        @if (!portions().length) {
+          <div class="empty-meal"><span class="plate-icon" aria-hidden="true">◉</span><h3>A refeição começa aqui</h3><p>Escolha um alimento acima para adicionar a primeira porção.</p></div>
+        } @else {
+          <div class="table-scroll"><table class="meal-table"><thead><tr><th>Alimento</th><th>Quantidade</th><th>kcal</th><th>Carb.</th><th>Prot.</th><th>Gord.</th><th><span class="sr-only">Ação</span></th></tr></thead><tbody>
+            @for (portion of portions(); track portion.key; let index = $index) {
+              <tr><td><strong>{{ portion.food.name }}</strong><small>{{ portion.food.source }}</small></td><td><div class="quantity-input"><input type="number" step="any" [ngModel]="portion.quantityG" (ngModelChange)="changeQuantity(portion.key, $event)" [attr.aria-label]="'Quantidade de ' + portion.food.name"><span>g</span></div></td>
+                @for (metric of metrics; track metric.key) {
+                  <td>@if (result(); as response) { {{ response.foods[index].nutrients[metric.key] | number:'1.0-2' }} } @else { <span class="muted">—</span> }</td>
+                }
+                <td><button class="remove-button" (click)="removeFood(portion.key)" [attr.aria-label]="'Remover ' + portion.food.name">×</button></td>
+              </tr>
+            }
+          </tbody></table></div>
+          <div class="meal-footer"><span>Adições e alterações de porção atualizam o cálculo.</span><button class="text-button" (click)="calculate()" [disabled]="calculating()">Recalcular refeição ↗</button></div>
+        }
+      </section>
+      <p class="bottom-note">Os totais são calculados mesmo sem metas. Quando há uma meta, o restante negativo indica que ela foi ultrapassada.</p>
+    </div>
+  </div>
+</main>
+<footer><span>nutrição.</span><span>Planejamento com atenção a cada detalhe.</span></footer>
+
+
+
