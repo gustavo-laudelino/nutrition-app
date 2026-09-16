@@ -1,6 +1,6 @@
 # HANDOFF — Nutrition App
 
-Atualizado em **16/09/2026**, com DRI automática como padrão, atividade DRI no perfil e remoção de condição fisiológica do MVP.
+Atualizado em **16/09/2026**, com DRI automática como padrão, atividade DRI no perfil, remoção de condição fisiológica do MVP e adoção do método de trabalho por épico/features (seção 2).
 
 Este documento registra o estado entregue, as decisões de desenvolvimento e os cuidados para continuar em outra sessão. Os contratos detalhados estão em [nutrition-api/README.md](nutrition-api/README.md) e [nutrition-web/README.md](nutrition-web/README.md).
 
@@ -14,8 +14,51 @@ Este documento registra o estado entregue, as decisões de desenvolvimento e os 
 - Não usar Lombok nem adicionar dependências sem necessidade técnica real.
 - Executar build e testes após mudanças de código. Atualizar este documento quando contratos ou decisões de domínio mudarem.
 - Nunca copiar credenciais de ambiente/IDE para código, documentação, exemplos ou logs.
+- Não gerar o JAR (`mvn package`/`verify`) com a API rodando a partir de `target/`: o build sobrescreve o JAR em uso e quebra o processo em execução. Parar a API antes ou usar apenas `mvn test`.
 
-## 2. Contexto e direção do produto
+## 2. Método de trabalho: épico e features
+
+O desenvolvimento é organizado por **épico → features**. Tela não é feature: uma tela reúne várias features. Trabalha-se **uma feature por vez**, até fechá-la, antes de avançar.
+
+### Épico atual: Planejamento alimentar
+
+| Ordem | Feature | Pacote / endpoints | Status |
+|---|---|---|---|
+| 1 | Estimativa energética | `energy` · `POST /api/energy-estimates` | **Em foco** |
+| 2 | Metas nutricionais (prescrição + macros) | `targets` · `POST /api/energy-prescriptions/per-kg`, `POST /api/target-calculations` | **Em foco** (após estimativa) |
+| — | Catálogo de alimentos | `food` · `GET /api/foods`, `GET /api/foods/{id}` | Fechamento leve (ver abaixo) |
+| — | Composição da dieta | `calculation` · `POST /api/diet-calculations` | Adiada: será redesenhada |
+
+**Catálogo de alimentos:** o PostgreSQL atual é **temporário**, usado só para fornecer dados reais aos testes da calculadora; outro banco será adotado no futuro. Não investir nele (limpeza de colunas legadas, migrations, pipeline de importação, ajuste de busca). O que deve permanecer estável é o contrato: interface `FoodCatalog` e `FoodResponse` (id, nome, fonte, nutrientes por 100 g). Trocar de banco = nova implementação de `FoodCatalog`. Ponto a decidir quando o novo banco for escolhido: tipo do ID do alimento (hoje `Long`), que afeta `foodId` na composição.
+
+**Composição da dieta:** será uma feature grande, provavelmente um workspace/kanban com liberdade criativa para o profissional. A tela atual existe apenas para testar a calculadora; **o frontend inteiro será reformulado**. Não investir em organização do `nutrition-web` atual além do necessário para testar o backend.
+
+**Paciente:** não é feature deste épico. `PatientContext` é apenas entrada de cálculo e sairá desta tela no futuro. Quando virar entidade, será épico próprio; a estimativa mudará apenas a origem dos dados.
+
+### Definição de "feature fechada"
+
+- Regras validadas com o nutricionista, com exemplos reais.
+- Contrato da API documentado (endpoints, campos, erros).
+- Testes cobrindo as regras e casos de borda.
+- Código organizado: nomes coerentes, sem validação duplicada, formatação padrão.
+- Mensagens de erro em português.
+- Testada no navegador com dados reais.
+- Este HANDOFF atualizado, com status "Fechada".
+- Merge em `main`.
+
+"Fechada" significa estável e documentada, não congelada: mudanças futuras entram como melhorias conscientes.
+
+### Ciclo por feature
+
+1. **Revisão focada** da feature (regras, contrato, código, testes), gerando lista de pendências, sem alterar código.
+2. **Dúvidas de regra** levadas ao nutricionista; nenhuma regra é inventada.
+3. **Ajustes** em branch da feature (ex.: `feature/energy-estimate`), em commits pequenos, sem misturar refatoração e mudança de comportamento.
+4. **Verificação**: testes automatizados e navegador.
+5. **Fechamento**: documentação, merge, status atualizado nesta seção.
+
+Itens transversais (formatação, mensagens em português, formato de erro) são resolvidos uma vez, na primeira feature trabalhada, e não repetidos por feature. Decisões de arquitetura mais profundas (separar domínio/DTO, migrations, OpenAPI, versionamento) ficam para quando a feature que as exige chegar (ex.: persistência de paciente).
+
+## 3. Contexto e direção do produto
 
 Aplicação para nutricionistas e, futuramente, seus pacientes. Há um nutricionista parceiro com a necessidade real e usuários disponíveis para validação; o desenvolvimento também compõe o portfólio do autor.
 
@@ -25,7 +68,7 @@ A direção atual é validar um núcleo coeso em um backend único, organizado p
 
 **Ainda não existem:** entidade Paciente/Usuário, cadastro, autenticação, autorização, persistência de planejamento/dieta, receitas ou organização persistida de várias refeições. A tela contém dados temporários de paciente para validar os cálculos. No futuro, esses valores poderão vir de um paciente salvo; não antecipar esse cadastro agora.
 
-## 3. Evolução do entendimento do domínio
+## 4. Evolução do entendimento do domínio
 
 1. A primeira calculadora exigia uma meta calórica e distribuição percentual de macros.
 2. O domínio foi corrigido para permitir montagem de dieta sem metas, metas parciais e métodos de cálculo opcionais.
@@ -53,7 +96,7 @@ Alimentos + quantidades → composição real, mesmo sem qualquer meta
 
 A razão dessa separação é permitir que os cálculos sejam ferramentas de apoio, sem transformar estimativas em decisões clínicas automáticas ou impedir a composição da dieta.
 
-## 4. Regras centrais vigentes
+## 5. Regras centrais vigentes
 
 - DRI/FAO não viram prescrição automaticamente. Fórmula de bolso é prescrição direta: escolher esse método e informar peso/fator preenche a meta com o resultado do backend.
 - O nutricionista pode copiar explicitamente a estimativa, digitar outro valor, aumentar/reduzir sua prescrição ou deixá-la vazia.
@@ -61,12 +104,11 @@ A razão dessa separação é permitir que os cálculos sejam ferramentas de apo
 - Objetivo (`WEIGHT_LOSS`, `MAINTENANCE`, `WEIGHT_GAIN`) é contexto; não participa da matemática.
 - O perfil contém `patient.driActivity`, específico da DRI. FAO exige `faoPal` próprio: não reutiliza nem converte a categoria DRI.
 - Diferença energética = prescrição − estimativa de referência, sem interpretar automaticamente o motivo.
-- Metas manuais e em g/kg de macros podem ser parciais e independentes de meta calórica.
 - Percentuais exigem a **meta prescrita**, não apenas uma estimativa; soma exatamente 100%, com 4/4/9 kcal/g.
 - Ausência de meta é `null`; macro com meta zero é diferente de ausência. Sem meta não há restante. Restante negativo é válido.
 - Composição usa os nutrientes da base por 100 g, proporcionalmente à quantidade. Kcal da fonte não são reconstruídas a partir dos macros.
 
-## 5. Métodos energéticos implementados
+## 6. Métodos energéticos implementados
 
 ### DRI 2023
 
@@ -115,16 +157,17 @@ Condição fisiológica foi removida do formulário, DTO e validações deste MV
 
 As equações vieram do documento de correção fornecido pelo usuário. A entrega implementa essas regras; não representa auditoria clínica independente das referências.
 
-## 6. Macronutrientes
+## 7. Macronutrientes
 
 - `NONE`: sem metas.
 - `PERCENTAGE`: carboidrato/proteína/gordura não negativos, total exato 100%, sobre prescrição positiva. Conversão 4/4/9.
-- `MANUAL`: metas em gramas; basta um macro preenchido.
-- `PER_KG`: peso × fator de proteína e/ou gordura informado pelo profissional. Carboidrato em g/kg continua indisponível por falta de regra e é rejeitado se enviado.
+- ~~`MANUAL`~~ (gramas digitados) e ~~`PER_KG`~~ (g/kg, fórmula de bolso de macros): **removidos em 16/09** por decisão do usuário; metas de macros são apenas ausentes ou percentuais. `/api/target-calculations` não aceita mais `patient`. Não restaurar sem nova definição.
 
-Não há carboidrato por diferença, fatores automáticos ou ajuste da prescrição para coincidir com a energia dos macros manuais. Os campos numéricos são limpos ao trocar o método na interface, para não reaproveitar porcentagens como gramas ou g/kg.
+**Interface (16/09):** o painel de macros oferece apenas "Sem metas" e "Percentual". Campos exibem como sugestão as faixas DRI/AMDR para adultos — carboidratos 45–65%, proteínas 10–35%, gorduras 20–35% — **apenas como referência**, sem validação nem bloqueio.
 
-## 7. Stack e organização
+Não há carboidrato por diferença, fatores automáticos ou ajuste da prescrição. Os campos numéricos são limpos ao trocar o método na interface. A composição da dieta continua aceitando metas parciais em `targets`.
+
+## 8. Stack e organização
 
 Backend em `nutrition-api`: Java 25, Spring Boot 4.1.1, Maven, JAR; package `com.nutritionapp` e group Maven `com.gustavo`. Dependências: Web MVC, Data JPA, Validation, PostgreSQL e starter de testes com escopo test.
 
@@ -142,7 +185,7 @@ Frontend em `nutrition-web`: Angular 22.1.6, TypeScript 6, RxJS; CLI 22.1.8 util
 
 Foi removido `EnergyTargetCalculator` e o antigo objeto `energy` de definição de metas. Não restaurar esses conceitos. Parâmetros desconhecidos são rejeitados, em vez de ignorados silenciosamente.
 
-## 8. Contratos HTTP finais
+## 9. Contratos HTTP finais
 
 | Método | Endpoint | Função |
 |---|---|---|
@@ -182,7 +225,7 @@ Composição aceita `foods` obrigatório e `targets` opcional. Recebe apenas IDs
 
 Correção posterior em 16/09: bolso passou de estimativa para prescrição direta. Esta regra substitui expressamente a interpretação anterior de exigir o botão de aplicar também para bolso.
 
-## 9. Estados da interface
+## 10. Estados da interface
 
 - Paciente, estimativa, prescrição e macros são quatro blocos visuais separados. Legendas auxiliares ficam em ícones “i”, acessíveis por hover/foco e dispensáveis com Esc.
 - Dados do paciente visíveis, seguidos de estimativa, prescrição, macros e composição.
@@ -197,9 +240,9 @@ Correção posterior em 16/09: bolso passou de estimativa para prescrição dire
 - Quantidades: porção inicial de 100 g; edição recalcula após 200 ms. Estimativa/metas usam 300 ms. Nenhuma fórmula nutricional no Angular.
 - Recarregar a página descarta tudo; não há localStorage ou persistência do planejamento.
 
-## 10. Banco e dados
+## 11. Banco e dados
 
-PostgreSQL 16 local, banco `nutrition_app`, tabela `public.foods`. Existem **544 alimentos**, todos fonte TACO, preservados durante as alterações. Única tabela de domínio encontrada: `foods`.
+**Banco temporário** (ver seção 2): serve apenas para testar a calculadora com dados reais e será substituído. PostgreSQL 16 local, banco `nutrition_app`, tabela `public.foods`. Existem **544 alimentos**, todos fonte TACO, preservados durante as alterações. Única tabela de domínio encontrada: `foods`.
 
 Composição por 100 g usa colunas explícitas `energy_kcal`, `protein_g`, `carbohydrate_g`, `fat_g` (numeric 19,6), além de id, name, source e source_code. `description` foi removido em entrega anterior por solicitação do usuário.
 
@@ -211,7 +254,7 @@ A importação anterior veio do arquivo local `C:/Users/gulau/Downloads/taco_foo
 
 Verificação de integridade antes/depois: 544 registros TACO e mesmo fingerprint `f48829987965229c866c3448b7a64213` (MD5 da concatenação de row_to_json ordenada por id, usado apenas para conferir ausência de alterações nesta base).
 
-## 11. Precisão e validação
+## 12. Precisão e validação
 
 - `BigDecimal` no backend; duas casas na saída, HALF_UP.
 - TMB FAO multiplicada pelo PAL antes do arredondamento.
@@ -221,7 +264,7 @@ Verificação de integridade antes/depois: 544 registros TACO e mesmo fingerprin
 - Bean Validation restringe dígitos e campos; erros de domínio também incluem identificação de campo em `errors`. Todo 400 traz `errors` (parâmetros de URL, tipos e propriedades desconhecidas identificam o campo, ex. `foods[0].foodId`); lista vazia só para JSON malformado sem campo identificável.
 - Lista de até 500 porções, IDs inteiros positivos, quantidades positivas com até 3 casas. Limites técnicos não são recomendações nutricionais.
 
-## 12. Executar e validar
+## 13. Executar e validar
 
 Requisitos usuais: JDK 25, Maven e Node.js compatível com `nutrition-web/package.json`.
 
@@ -241,11 +284,11 @@ API padrão `http://127.0.0.1:8081`; frontend `http://127.0.0.1:4200`. Proxy loc
 
 No ambiente utilizado nesta entrega, o Java padrão do terminal pode não ser 25. O JDK 25 está em `C:/Program Files/Eclipse Adoptium/jdk-25.0.3.9-hotspot`. Foi utilizado Maven 3.9.12 em `%TEMP%/nutrition-build-tools/apache-maven-3.9.12` e repositório Maven temporário `%TEMP%/nutrition-maven-repository`. Esses caminhos são conveniências locais, não requisitos do projeto; podem deixar de existir. Não registrar credenciais encontradas na configuração da IDE.
 
-## 13. Validação concluída
+## 14. Validação concluída
 
 - Validação atual de bolso no navegador: peso 120 kg e fator 20 preencheram diretamente 2400 kcal na meta e no resumo. O bloco de estimativa mostrou somente fator/troca de fórmula, sem cartão azul nem botão de aplicar.
-- Backend: **129 testes**, zero falhas/erros (`mvn test`, 16/09, após refatorações de review: cálculo de bolso em service, carga de alimentos em lote, `errors` em todo 400). Nessa rodada o `package` não regravou o JAR porque o arquivo estava em uso pela API em execução; reiniciar a API após gerar o JAR.
-- Frontend: **24 testes**, zero falhas, `npm run build` e `npm test` concluídos.
+- Backend: **124 testes**, zero falhas/erros (`mvn test`, 16/09, após remoção dos macros `MANUAL`/`PER_KG`). O JAR em `target/` pode estar desatualizado: gerar com a API parada e reiniciá-la.
+- Frontend: **26 testes**, zero falhas, `npm run build` e `npm test` concluídos (layout com paciente/configurações em painéis laterais e resumo em anéis).
 - Idioma pt-BR também configurado nos testes de interface.
 - Validação atual no navegador com API PostgreSQL: preencher homem, 30 anos, 80 kg, 175 cm, ACTIVE produziu DRI 3093.72 automaticamente, sem prescrição. Meta manual 2000 foi preservada ao abrir alternativas e escolher FAO; PAL começou vazio. Informar PAL 1.60 produziu 2865.38 e diferença -865.38. Retorno à DRI preservou o perfil.
 - API reiniciada com o JAR atualizado na porta 8081 após liberar a execução anterior que bloqueava o arquivo. Nenhuma alteração de banco foi necessária.
@@ -257,10 +300,10 @@ No ambiente utilizado nesta entrega, o Java padrão do terminal pode não ser 25
 
 Os testes de backend usam fixtures e não exigem PostgreSQL. A conferência real descrita foi executada separadamente; não substituir essa distinção por alegação de que toda a suíte testa o banco real.
 
-## 14. Limites e continuidade
+## 15. Limites e continuidade
 
 Não avançar automaticamente para cadastro, autenticação, persistência, múltiplas refeições, migrations, infraestrutura ou microsserviços. São futuras features a definir com o usuário.
 
-Pendências de domínio: métodos pediátricos, gestação/lactação, carboidratos em g/kg e eventual avaliação de atividade que derive PAL. Não há regras para essas ampliações e elas não devem ser inferidas.
+Pendências de domínio: métodos pediátricos, gestação/lactação, eventual avaliação de atividade que derive PAL. Não há regras para essas ampliações e elas não devem ser inferidas.
 
-Ao iniciar uma nova sessão: ler este HANDOFF e os READMEs, inspecionar o código/estado atual, confirmar o novo escopo e manter a distinção entre estimativa, decisão profissional e consumo real. Validar mudanças com exemplos fornecidos pelo nutricionista e atualizar os testes, contratos e este documento em conjunto.
+Ao iniciar uma nova sessão: conferir na seção 2 qual feature está em foco e trabalhar somente nela; ler este HANDOFF e os READMEs, inspecionar o código/estado atual, confirmar o novo escopo e manter a distinção entre estimativa, decisão profissional e consumo real. Validar mudanças com exemplos fornecidos pelo nutricionista e atualizar os testes, contratos e este documento em conjunto.
