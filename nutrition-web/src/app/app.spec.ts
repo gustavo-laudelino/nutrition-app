@@ -37,7 +37,7 @@ describe('Estimate, professional prescription and independent composition', () =
     app.form.controls.patient.patchValue({weightKg:80,heightCm:175,age:30,sex:'MALE',driActivity:'ACTIVE'}); flushComposition();
   }
   it('starts with automatic DRI and reveals alternatives only on request',()=>{
-    expect(app.estimationMethod).toBe('DRI_2023');
+    expect(app.estimationMethod).toBe('DRI_2023');app.openPanel('estimate');fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('[formControlName="physiologicalState"]')).toBeNull();
     expect(fixture.nativeElement.querySelector('[aria-label="Método de estimativa"]')).toBeNull();
     const button:HTMLButtonElement=fixture.nativeElement.querySelector('[aria-controls="alternative-methods"]');
@@ -72,8 +72,9 @@ describe('Estimate, professional prescription and independent composition', () =
     expect(request.request.body).toEqual({weightKg:120,kcalPerKg:20});
     request.flush({prescribedEnergyKcal:2400});flushComposition();
     expect(app.form.controls.prescribedEnergyKcal.value).toBe(2400);
-    expect(app.estimate()).toBeNull();fixture.detectChanges();
+    expect(app.estimate()).toBeNull();app.openPanel('estimate');fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.estimate-preview')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.config-button.prescription').textContent).toContain('2.400');
     expect(fixture.nativeElement.querySelector('.estimate-button')).toBeNull();
     app.updateTargets();const targets=http.expectOne('/api/target-calculations');
     expect(targets.request.body.prescribedEnergyKcal).toBe(2400);
@@ -104,8 +105,19 @@ describe('Estimate, professional prescription and independent composition', () =
     expect(app.form.controls.prescribedEnergyKcal.value).toBe(2300);
     http.expectNone('/api/energy-prescriptions/per-kg');
   });
-  it('renders temporary patient data and consumption with no required goals',()=>{
+  it('keeps temporary patient data in a drawer opened on demand',()=>{
     fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[formControlName="weightKg"]')).toBeNull();
+    fixture.nativeElement.querySelector('.patient-trigger').click();fixture.detectChanges();
+    const input:HTMLInputElement=fixture.nativeElement.querySelector('[formControlName="weightKg"]');
+    input.value='80';input.dispatchEvent(new Event('input'));flushComposition();
+    expect(app.form.controls.patient.controls.weightKg.value).toBe(80);
+    document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.drawer')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.patient-trigger').textContent).toContain('80 kg');
+  });
+  it('renders temporary patient data and consumption with no required goals',()=>{
+    app.openPanel('patient');fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('[formControlName="name"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('[formControlName="goal"]')).not.toBeNull();
     const summary=fixture.nativeElement.querySelector('.summary');
@@ -119,7 +131,7 @@ describe('Estimate, professional prescription and independent composition', () =
   it('keeps a computed estimate separate until the explicit use-as-target action',()=>{
     selectDri();app.updateEstimate();http.expectOne('/api/energy-estimates').flush(estimate);flushComposition();
     expect(app.form.controls.prescribedEnergyKcal.value).toBeNull();http.expectNone('/api/target-calculations');
-    fixture.detectChanges();expect(fixture.nativeElement.querySelector('.estimate-preview').textContent).toContain('2.437');
+    app.openPanel('estimate');fixture.detectChanges();expect(fixture.nativeElement.querySelector('.estimate-preview').textContent).toContain('2.437');
     expect(fixture.nativeElement.querySelector('.summary').textContent).not.toContain('Restante');
     app.useEstimateAsTarget();flushComposition();expect(app.form.controls.prescribedEnergyKcal.value).toBe(2437);
     app.updateTargets();const request=http.expectOne('/api/target-calculations');
@@ -133,8 +145,12 @@ describe('Estimate, professional prescription and independent composition', () =
     expect(http.expectOne('/api/diet-calculations').request.body.targets.energyKcal).toBe(2000);
   });
   it('shows estimate and prescribed values plus the authoritative backend difference',()=>{
-    app.estimate.set(estimate);app.targets.set(definition);fixture.detectChanges();
+    app.estimate.set(estimate);app.targets.set(definition);app.form.controls.prescribedEnergyKcal.setValue(2000,{emitEvent:false});fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.config-button.estimate').textContent).toContain('2.437');
+    expect(fixture.nativeElement.querySelector('.config-button.prescription').textContent).toContain('-437');
+    app.openPanel('estimate');fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.estimate-preview').textContent).toContain('2.437');
+    app.openPanel('prescription');fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.prescription-difference').textContent).toContain('-437');
   });
   it('never overwrites prescription on patient objective changes or recalculation',()=>{
@@ -152,7 +168,7 @@ describe('Estimate, professional prescription and independent composition', () =
     app.updateEstimate();const fao=http.expectOne('/api/energy-estimates');
     expect(fao.request.body.faoPal).toBe(1.6);expect(fao.request.body.driActivity).toBeUndefined();
     fao.flush({method:'FAO',estimatedKcal:2865.38,basalKcal:1790.86,driActivity:null,faoPal:1.6,faoActivity:'SEDENTARY_LIGHT'});flushComposition();
-    fixture.detectChanges();const preview=fixture.nativeElement.querySelector('.estimate-preview');
+    app.openPanel('estimate');fixture.detectChanges();const preview=fixture.nativeElement.querySelector('.estimate-preview');
     expect(preview.textContent).toContain('2.865,38');expect(preview.textContent).toContain('1.790,86');
     expect(app.form.controls.prescribedEnergyKcal.value).toBeNull();
   });
@@ -169,17 +185,26 @@ describe('Estimate, professional prescription and independent composition', () =
     app.addFood(food);const request=http.expectOne('/api/diet-calculations');
     expect(request.request.body.targets.energyKcal).toBe(2000);request.flush(mealResponse);expect(app.estimateErrors().length).toBe(1);
   });
-  it('does not reuse macro numbers when their units change',()=>{
+  it('offers only no macro targets or percentages with DRI reference hints',()=>{
+    app.openPanel('macros');fixture.detectChanges();
+    const select:HTMLSelectElement=fixture.nativeElement.querySelector('[aria-label="Método das metas de macros"]');
+    expect(Array.from(select.options).map(option=>option.value)).toEqual(['NONE','PERCENTAGE']);
+    app.form.controls.macros.controls.method.setValue('PERCENTAGE');flushComposition();fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[aria-label="Meta de carboidratos"]').placeholder).toContain('45–65');
+    expect(fixture.nativeElement.querySelector('[aria-label="Meta de proteínas"]').placeholder).toContain('10–35');
+    expect(fixture.nativeElement.querySelector('[aria-label="Meta de gorduras"]').placeholder).toContain('20–35');
+  });
+  it('clears macro numbers when the method changes',()=>{
     app.form.controls.macros.controls.method.setValue('PERCENTAGE');flushComposition();
     app.form.controls.macros.patchValue({carbohydrate:50,protein:20,fat:30});flushComposition();
-    app.form.controls.macros.controls.method.setValue('MANUAL');flushComposition();
-    expect(app.form.controls.macros.getRawValue()).toEqual({method:'MANUAL',carbohydrate:null,protein:null,fat:null});
+    app.form.controls.macros.controls.method.setValue('NONE');flushComposition();
+    expect(app.form.controls.macros.getRawValue()).toEqual({method:'NONE',carbohydrate:null,protein:null,fat:null});
   });
-  it('sends partial manual macros and keeps composing after a target error',()=>{
-    app.form.controls.macros.controls.method.setValue('MANUAL');flushComposition();
-    app.form.controls.macros.patchValue({protein:150,fat:70});flushComposition();app.updateTargets();
+  it('sends percentage macros and keeps composing after a target error',()=>{
+    app.form.controls.macros.controls.method.setValue('PERCENTAGE');flushComposition();
+    app.form.controls.macros.patchValue({carbohydrate:50,protein:20,fat:30});flushComposition();app.updateTargets();
     const request=http.expectOne('/api/target-calculations');
-    expect(request.request.body.macros).toEqual({method:'MANUAL',carbohydrate:null,protein:150,fat:70});
+    expect(request.request.body.macros).toEqual({method:'PERCENTAGE',carbohydrate:50,protein:20,fat:30});
     request.flush({detail:'Erro de teste'},{status:400,statusText:'Bad Request'});
     flushComposition();
     app.addFood(food);http.expectOne('/api/diet-calculations').flush(mealResponse);expect(app.targetErrors().length).toBe(1);
@@ -188,8 +213,15 @@ describe('Estimate, professional prescription and independent composition', () =
     app.targets.set(definition);app.calculate();const request=http.expectOne('/api/diet-calculations');
     expect(request.request.body.targets).toEqual(definition.targets);
     request.flush({...response,totals:{...response.totals,energyKcal:{target:999,consumed:777,remaining:222},proteinG:{target:0,consumed:10,remaining:-10}}});
-    fixture.detectChanges();expect(fixture.nativeElement.querySelector('.metric-card.energy').textContent).toContain('222');
-    expect(fixture.nativeElement.querySelector('.metric-card.protein .exceeded')).not.toBeNull();
+    fixture.detectChanges();expect(fixture.nativeElement.querySelector('.ring-legend-row.energy').textContent).toContain('222');
+    expect(fixture.nativeElement.querySelector('.ring-legend-row.protein.exceeded')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.ring-center').textContent).toContain('78%');
+    const energyRing=app.rings[0];expect(energyRing.progress).toBeCloseTo(777/999);
+    expect(app.rings[2].progress).toBe(1);expect(app.rings[1].progress).toBe(0);
+    expect(fixture.nativeElement.querySelector('.ring-legend-row.protein').textContent).toContain('acima da meta');
+    app.result.set({...response,totals:{...response.totals,carbohydrateG:{target:100,consumed:150,remaining:-50}}});fixture.detectChanges();
+    expect(app.rings[1].progress).toBe(1);expect(app.rings[1].overflow).toBeCloseTo(0.5);
+    expect(fixture.nativeElement.querySelector('.ring-overflow.carb')).not.toBeNull();
   });
   it('debounces estimates and cancels obsolete responses',async()=>{
     vi.useFakeTimers();selectDri();await vi.advanceTimersByTimeAsync(299);http.expectNone('/api/energy-estimates');

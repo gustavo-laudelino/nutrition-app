@@ -10,7 +10,7 @@ export type Sex = 'FEMALE' | 'MALE' | 'UNSPECIFIED';
 export type PatientGoal = 'WEIGHT_LOSS' | 'MAINTENANCE' | 'WEIGHT_GAIN';
 export type EstimateMethod = 'DRI_2023' | 'FAO';
 export type DriActivity = 'INACTIVE' | 'LOW_ACTIVE' | 'ACTIVE' | 'VERY_ACTIVE';
-export type MacroMethod = 'NONE' | 'PERCENTAGE' | 'PER_KG' | 'MANUAL';
+export type MacroMethod = 'NONE' | 'PERCENTAGE';
 export interface Patient {
   name?: string; weightKg?: number | null; heightCm?: number | null; age?: number | null;
   sex?: Sex; goal?: PatientGoal | null; driActivity?: DriActivity | null;
@@ -26,7 +26,6 @@ export interface EstimateResponse {
 }
 export interface NutrientTargets { energyKcal: number | null; carbohydrateG: number | null; proteinG: number | null; fatG: number | null }
 export interface TargetRequest {
-  patient?: Patient;
   prescribedEnergyKcal: number | null;
   referenceEstimateKcal: number | null;
   macros: { method: MacroMethod; carbohydrate?: number | null; protein?: number | null; fat?: number | null };

@@ -7,7 +7,9 @@ import { Subscription, timer } from 'rxjs';
 import { CalculationResponse, DriActivity, EstimateMethod, EstimateRequest, EstimateResponse, Food, FoodPage, MacroMethod, NutritionApi, PatientGoal, Sex, TargetRequest, TargetResponse } from './api';
 
 interface Portion { key: number; food: Food; quantityG: number | null }
-@Component({ selector: 'app-root', standalone: true, imports: [DecimalPipe, FormsModule, ReactiveFormsModule, InfoTipComponent], templateUrl: './app.html' })
+type Panel = 'patient' | 'estimate' | 'prescription' | 'macros';
+@Component({ selector: 'app-root', standalone: true, imports: [DecimalPipe, FormsModule, ReactiveFormsModule, InfoTipComponent], templateUrl: './app.html',
+  host: { '(document:keydown.escape)': 'closePanel()' } })
 export class AppComponent implements OnInit, OnDestroy {
   private readonly api = inject(NutritionApi);
   private readonly fb = inject(FormBuilder);
@@ -39,7 +41,7 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly estimate = signal<EstimateResponse | null>(null);
   readonly estimateLoading = signal(false);
   readonly estimateErrors = signal<string[]>([]);
-  readonly estimateLabels = { DRI_2023: 'DRI 2023', FAO: 'FAO/WHO/UNU' };
+  readonly estimateLabels = { DRI_2023: 'DRI 2023', FAO: 'FAO/WHO/UNU', PER_KG: 'Fórmula de bolso' };
   readonly driLabels = { INACTIVE: 'Inativo', LOW_ACTIVE: 'Pouco ativo', ACTIVE: 'Ativo', VERY_ACTIVE: 'Muito ativo' };
   readonly faoLabels = { SEDENTARY_LIGHT: 'Sedentário / atividade leve', ACTIVE_MODERATE: 'Ativo / moderadamente ativo', VIGOROUS: 'Vigorosamente ativo' };
   readonly targets = signal<TargetResponse | null>(null);
@@ -51,8 +53,52 @@ export class AppComponent implements OnInit, OnDestroy {
     { key: 'proteinG', label: 'Proteínas', unit: 'g', css: 'protein' },
     { key: 'fatG', label: 'Gorduras', unit: 'g', css: 'fat' },
   ] as const;
+  readonly panel = signal<Panel | null>(null);
+  readonly panelTitles: Record<Panel, string> = { patient: 'Paciente', estimate: 'Estimativa energética', prescription: 'Meta energética', macros: 'Metas de macros' };
+  readonly macroLabels: Record<MacroMethod, string> = { NONE: 'Nenhum método definido', PERCENTAGE: 'Percentual da meta energética' };
   query = '';
   get estimationMethod() { return this.form.controls.estimation.controls.method.value; }
+
+  // Patient data and calculation settings live in drawers, keeping the workspace focused on the diet.
+  openPanel(panel: Panel) {
+    this.panel.set(panel);
+    setTimeout(() => document.querySelector<HTMLElement>('.drawer input, .drawer select')?.focus());
+  }
+  closePanel() { this.panel.set(null); }
+  // Visual ring progress only: consumed, target and remaining values come from the backend.
+  get rings() {
+    const totals = this.result()?.totals;
+    return this.metrics.map((metric, index) => {
+      const balance = totals?.[metric.key] ?? null;
+      const radius = 110 - index * 14;
+      const circumference = 2 * Math.PI * radius;
+      const target = balance?.target ?? null;
+      const ratio = balance && target !== null ? (target > 0 ? balance.consumed / target : balance.consumed > 0 ? 1 : 0) : 0;
+      const progress = Math.min(ratio, 1);
+      // Past the target, a darker second lap shows the excess (capped at one extra lap).
+      const overflow = Math.min(Math.max(ratio - 1, 0), 1);
+      return { ...metric, balance, radius, circumference, progress, offset: circumference * (1 - progress),
+        overflow, overflowOffset: circumference * (1 - overflow),
+        percent: target ? Math.round(ratio * 100) : null, exceeded: (balance?.remaining ?? 0) < 0 };
+    });
+  }
+  get macroSummary() {
+    const macros = this.targets()?.macros;
+    if (!macros) return [];
+    return ([['C', macros.carbohydrate], ['P', macros.protein], ['G', macros.fat]] as const)
+      .filter(([, target]) => target !== null).map(([label, target]) => ({ label, grams: target!.grams }));
+  }
+  get patientSummary() {
+    const { name, age, weightKg } = this.form.controls.patient.getRawValue();
+    return [name.trim(), age !== null ? `${age} anos` : '', weightKg !== null ? `${weightKg} kg` : ''].filter(Boolean).join(' · ');
+  }
+  get needsPatientData() {
+    const { weightKg, heightCm, age, sex, driActivity } = this.form.controls.patient.getRawValue();
+    if (weightKg === null) return true;
+    if (this.estimationMethod === 'PER_KG') return false;
+    if (age === null || sex === 'UNSPECIFIED') return true;
+    return this.estimationMethod === 'DRI_2023' && (heightCm === null || driActivity === null);
+  }
   get macroMethod() { return this.form.controls.macros.controls.method.value; }
 
   ngOnInit() {
@@ -169,15 +215,13 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   private targetPayload(): TargetRequest {
-    const { patient, prescribedEnergyKcal, macros } = this.form.getRawValue();
+    const { prescribedEnergyKcal, macros } = this.form.getRawValue();
     const request: TargetRequest = {
       prescribedEnergyKcal, referenceEstimateKcal: this.estimate()?.estimatedKcal ?? null,
       macros: { method: macros.method },
     };
-    if (macros.method === 'PER_KG') request.patient = { weightKg: patient.weightKg };
     if (macros.method !== 'NONE') {
-      request.macros.protein = macros.protein; request.macros.fat = macros.fat;
-      if (macros.method !== 'PER_KG') request.macros.carbohydrate = macros.carbohydrate;
+      request.macros.carbohydrate = macros.carbohydrate; request.macros.protein = macros.protein; request.macros.fat = macros.fat;
     }
     return request;
   }
