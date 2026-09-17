@@ -1,12 +1,63 @@
 {
- "foods":[
- {"foodId":1,"name":"Alimento sintético A","source":"SYNTHETIC_DEVELOPMENT","sourceCode":null,"quantityG":150,"nutrients":{"energyKcal":195,"carbohydrateG":42,"proteinG":4.5,"fatG":1.5}},
- {"foodId":2,"name":"Alimento sintético B","source":"SYNTHETIC_DEVELOPMENT","sourceCode":null,"quantityG":100,"nutrients":{"energyKcal":165,"carbohydrateG":0,"proteinG":31,"fatG":4}}
- ],
- "totals":{
- "energyKcal":{"target":2000,"consumed":360,"remaining":1640},
- "carbohydrateG":{"target":null,"consumed":42,"remaining":null},
- "proteinG":{"target":150,"consumed":35.5,"remaining":114.5},
- "fatG":{"target":70,"consumed":5.5,"remaining":64.5}
- }
+  "totals": {
+    "energyKcal": {
+      "target": 2000,
+      "consumed": 360,
+      "remaining": 1640
+    },
+    "carbohydrateG": {
+      "target": null,
+      "consumed": 42,
+      "remaining": null
+    },
+    "proteinG": {
+      "target": 150,
+      "consumed": 35.5,
+      "remaining": 114.5
+    },
+    "fatG": {
+      "target": 70,
+      "consumed": 5.5,
+      "remaining": 64.5
+    }
+  },
+  "meals": [
+    {
+      "name": "Almoço",
+      "foods": [
+        {
+          "foodId": 1,
+          "name": "Alimento sintético A",
+          "source": "SYNTHETIC_DEVELOPMENT",
+          "sourceCode": null,
+          "quantityG": 150,
+          "nutrients": {
+            "energyKcal": 195,
+            "carbohydrateG": 42,
+            "proteinG": 4.5,
+            "fatG": 1.5
+          }
+        },
+        {
+          "foodId": 2,
+          "name": "Alimento sintético B",
+          "source": "SYNTHETIC_DEVELOPMENT",
+          "sourceCode": null,
+          "quantityG": 100,
+          "nutrients": {
+            "energyKcal": 165,
+            "carbohydrateG": 0,
+            "proteinG": 31,
+            "fatG": 4
+          }
+        }
+      ],
+      "totals": {
+        "energyKcal": 360,
+        "carbohydrateG": 42,
+        "proteinG": 35.5,
+        "fatG": 5.5
+      }
+    }
+  ]
 }

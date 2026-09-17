@@ -1,1 +1,22 @@
-{"targets":{"energyKcal":2000,"proteinG":150,"fatG":70},"foods":[{"foodId":1,"quantityG":150},{"foodId":2,"quantityG":100}]}
+{
+  "targets": {
+    "energyKcal": 2000,
+    "proteinG": 150,
+    "fatG": 70
+  },
+  "meals": [
+    {
+      "name": "Almoço",
+      "foods": [
+        {
+          "foodId": 1,
+          "quantityG": 150
+        },
+        {
+          "foodId": 2,
+          "quantityG": 100
+        }
+      ]
+    }
+  ]
+}
