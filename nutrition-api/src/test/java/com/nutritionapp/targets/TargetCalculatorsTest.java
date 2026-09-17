@@ -62,6 +62,28 @@ class TargetCalculatorsTest {
         assertThatThrownBy(() -> calculator.calculate(new PerKgPrescriptionRequest(d("0.001"),d("0.0001"))))
                 .isInstanceOf(InvalidCalculationException.class);
     }
+    @Test void compositionBecomesEnergyTargetAndMacroPercentagesSummingToHundred() {
+        var result = new CompositionTargetCalculator().calculate(new CompositionTargetRequest(d("124"),d("25.8"),d("2.6"),d("1")));
+        assertThat(result.prescribedEnergyKcal()).isEqualByComparingTo("124");
+        assertThat(result.carbohydratePercent()).isEqualByComparingTo("84.1762");
+        assertThat(result.proteinPercent()).isEqualByComparingTo("8.4829");
+        assertThat(result.fatPercent()).isEqualByComparingTo("7.3409");
+        assertThat(result.carbohydratePercent().add(result.proteinPercent()).add(result.fatPercent())).isEqualByComparingTo("100");
+        var targets = macros.calculate(result.prescribedEnergyKcal(), new MacroChoice(MacroMethod.PERCENTAGE,
+                result.carbohydratePercent(), result.proteinPercent(), result.fatPercent()));
+        assertThat(targets.carbohydrate().grams()).isEqualByComparingTo("26.09");
+    }
+    @Test void compositionRoundingResidueGoesToLargestShare() {
+        var result = new CompositionTargetCalculator().calculate(new CompositionTargetRequest(d("108"),d("9"),d("9"),d("4")));
+        assertThat(result.carbohydratePercent()).isEqualByComparingTo("33.3334");
+        assertThat(result.proteinPercent()).isEqualByComparingTo("33.3333");
+        assertThat(result.fatPercent()).isEqualByComparingTo("33.3333");
+    }
+    @Test void compositionWithoutEnergyOrMacrosCannotBecomeTarget() {
+        var calculator = new CompositionTargetCalculator();
+        assertThatThrownBy(() -> calculator.calculate(new CompositionTargetRequest(d("0"),d("0"),d("0"),d("0")))).isInstanceOf(InvalidCalculationException.class);
+        assertThatThrownBy(() -> calculator.calculate(new CompositionTargetRequest(d("50"),d("0"),d("0"),d("0")))).isInstanceOf(InvalidCalculationException.class);
+    }
     @Test void rejectsValuesWithoutMacroMethod() {
         assertThatThrownBy(() -> macros.calculate(null,new MacroChoice(MacroMethod.NONE,null,d("10"),null))).isInstanceOf(InvalidCalculationException.class);
     }
