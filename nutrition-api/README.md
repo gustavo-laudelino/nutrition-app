@@ -35,6 +35,7 @@ Não há cadastro de usuários/pacientes, autenticação, persistência de dieta
 | POST | `/api/energy-estimates` | Estimativa energética, nunca prescrição |
 | POST | `/api/energy-prescriptions/per-kg` | Meta direta por peso × kcal/kg |
 | POST | `/api/target-calculations` | Prescrição explícita, comparação e macros |
+| POST | `/api/target-calculations/from-composition` | Composição atual convertida em meta energética e percentuais de macros |
 | POST | `/api/diet-calculations` | Composição e saldos opcionais |
 
 Todos os endpoints de cálculo são sem persistência. Busca usa AND entre termos; não faz correção ortográfica ou sinônimos. `page` inicia em 0; `size` entre 1 e 100.
@@ -91,24 +92,62 @@ Métodos de macros:
 
 Os campos `carbohydrate`, `protein` e `fat` são percentuais da prescrição. Não há fatores automáticos, carboidrato por diferença ou ajuste da prescrição pela soma dos macros. Zero é meta explícita; null é ausência.
 
-## Composição
+### Composição como meta
+
+`POST /api/target-calculations/from-composition` é usado pela ação explícita "Definir composição como meta". Recebe os totais consumidos do dia (como devolvidos por `/api/diet-calculations`):
 
 ```json
-{"targets":{"energyKcal":2000,"proteinG":150,"fatG":70},"foods":[{"foodId":1,"quantityG":150}]}
+{"energyKcal": 124, "carbohydrateG": 25.8, "proteinG": 2.6, "fatG": 1}
 ```
 
-`targets` pode ser omitido por completo. O cliente envia somente IDs e quantidades dos alimentos; nutrientes são lidos da base TACO. `foods` obrigatório, podendo ser vazio, até 500 porções. Valores por 100 g × quantidade / 100; porções repetidas são contabilizadas separadamente. Cada saldo contém `target`, `consumed`, `remaining`. Sem meta, target/remaining são null; excedentes geram restante negativo.
+e retorna:
 
-Os arquivos `examples/diet-calculation-*.json` continuam sendo **fixtures sintéticas da suíte**, não dados TACO. Para uso real, consulte IDs e valores da base via `/api/foods`.
+```json
+{"prescribedEnergyKcal": 124.00, "carbohydratePercent": 84.1762, "proteinPercent": 8.4829, "fatPercent": 7.3409}
+```
+
+- `prescribedEnergyKcal` = energia consumida, arredondada a 2 casas.
+- Percentuais = energia de cada macro (C×4, P×4, G×9) sobre a soma dessas energias, com 4 casas (HALF_UP). O resíduo do arredondamento é somado à maior fatia, para totalizar exatamente 100 e ser aceito por `PERCENTAGE`.
+- Como as kcal da tabela diferem da soma 4/4/9, as metas em gramas derivadas desses percentuais ficam próximas, mas não iguais, aos gramas consumidos (ex.: 25,8 g consumidos → meta de 26,09 g).
+- Campos obrigatórios, não negativos, até 2 casas. Energia zero (`energyKcal`) ou macros todos zero (`macros`) retornam 400. O endpoint não altera nenhuma meta; o cliente aplica o resultado.
+
+## Composição por refeições
+
+`POST /api/diet-calculations` recebe `meals` obrigatório e `targets` diário opcional. O antigo `foods` na raiz é rejeitado com HTTP 400.
+
+```json
+{
+  "targets": {"energyKcal": 2000, "proteinG": 150},
+  "meals": [
+    {"name": "Almoço", "foods": [{"foodId": 1, "quantityG": 150}]},
+    {"name": "Ceia", "foods": []}
+  ]
+}
+```
+
+- Até 20 refeições e 500 porções somadas no dia. Dia vazio (`meals: []`) e refeição vazia são válidos.
+- Nome obrigatório, não branco após trim, até 60 caracteres; nomes repetidos são permitidos. A resposta devolve o nome sem espaços nas extremidades.
+- Cada `foods` é obrigatório e contém IDs positivos e quantidades positivas em gramas, com até três casas decimais. Alimentos repetidos são contabilizados individualmente.
+- Resposta: `meals[]` na ordem do pedido, cada item com `name`, `foods` calculados e `totals` simples (`energyKcal`, `carbohydrateG`, `proteinG`, `fatG`). Não há meta ou saldo por refeição.
+- `totals` na raiz contém os saldos diários `{target, consumed, remaining}`. Sem meta, target/remaining são null. Excedentes têm saldo negativo.
+- Uma única chamada a `FoodCatalog.findAllById` carrega todos os IDs do dia. Alimento inexistente em qualquer refeição retorna 404.
+- Valores exatos das porções são somados antes de arredondar. Cada refeição é arredondada separadamente; o dia usa a soma exata de todas as porções, nunca os totais de refeições já arredondados. A soma dos totais exibidos por refeição pode diferir do total diário em centésimos.
+- Erros 400 usam caminhos como `meals[1].name`, `meals[0].foods[2].quantityG` ou `meals` para o limite diário de porções.
+
+Os arquivos `examples/diet-calculation-request.json` e `examples/diet-calculation-response.json` trazem o contrato completo com **fixtures sintéticas da suíte**, não dados TACO. Para uso real, consulte IDs e valores da base via `/api/foods`. Não há persistência, entidades ou tabelas de refeições.
 
 ## Precisão e erros
 
 `BigDecimal` em toda aritmética; HALF_UP e duas casas na saída. FAO multiplica TMB exata pelo PAL antes de arredondar; composição soma porções exatas antes de arredondar. Saldo usa meta apresentada menos consumo apresentado. Kcal da base são preservadas, sem reconstrução por macros.
 
-Campos desconhecidos, enums/tipos inválidos, combinações incompatíveis e entradas fora do escopo geram HTTP 400 (`application/problem+json`). Todo 400 inclui `errors[{field,message}]`, também para parâmetros de URL e JSON ilegível (ex.: `foods[0].foodId`, propriedade desconhecida `targetKcal`); a lista fica vazia apenas quando não há campo identificável, como em JSON malformado. Alimento inexistente retorna 404. Não há compatibilidade artificial com o antigo objeto `energy` de `/api/target-calculations`; ele agora é rejeitado.
+Campos desconhecidos, enums/tipos inválidos, combinações incompatíveis e entradas fora do escopo geram HTTP 400 (`application/problem+json`). Todo 400 inclui `errors[{field,message}]`, também para parâmetros de URL e JSON ilegível (ex.: `meals[0].foods[0].foodId`, propriedade desconhecida `targetKcal`); a lista fica vazia apenas quando não há campo identificável, como em JSON malformado. Alimento inexistente retorna 404. Não há compatibilidade artificial com o antigo objeto `energy` de `/api/target-calculations`; ele agora é rejeitado.
 
 Metas e quantidades têm limites técnicos de dígitos. Peso/altura positivos; idade inteira de 19 a 130 quando informada; quantidades positivas até 3 casas; fatores e macros até 4 casas (PAL FAO até 2).
 
 ## Testes
 
 `mvn clean verify` cobre as oito equações DRI, FAO/BMR/PAL/limites etários, precisão sem arredondamento intermediário, objetivos sem efeito matemático, atividade DRI sem conversão para FAO, independência de prescrição, macros, composição, contratos HTTP e catálogo. A suíte não exige PostgreSQL; integração real é verificada separadamente.
+
+Validação da feature Refeições (16/09): **137 testes backend** passando em `mvn clean verify`; JAR gerado somente após parar a API. Inclui precisão entre refeições, carga única de alimentos, limites, contrato antigo rejeitado e erros aninhados.
+
+Estado atual (16/09): **141 testes backend**, incluindo composição como meta (percentuais, resíduo na maior fatia, rejeições e contrato HTTP).

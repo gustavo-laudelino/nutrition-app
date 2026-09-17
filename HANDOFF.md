@@ -1,6 +1,6 @@
 # HANDOFF — Nutrition App
 
-Atualizado em **16/09/2026**, com DRI automática como padrão, atividade DRI no perfil, remoção de condição fisiológica do MVP e adoção do método de trabalho por épico/features (seção 2).
+Atualizado em **16/09/2026**, após implementar e validar a feature Refeições conforme `docs/features/refeicoes.md`, ampliada pelo usuário com layout em grid, horário (só na tela), arrastar e soltar (`@angular/cdk`), composição como meta e envio de requisições apenas ao confirmar campos; revisão de código concluída antes do commit.
 
 Este documento registra o estado entregue, as decisões de desenvolvimento e os cuidados para continuar em outra sessão. Os contratos detalhados estão em [nutrition-api/README.md](nutrition-api/README.md) e [nutrition-web/README.md](nutrition-web/README.md).
 
@@ -11,7 +11,7 @@ Este documento registra o estado entregue, as decisões de desenvolvimento e os 
 - Regras nutricionais, fórmulas, validações de negócio, arredondamento e saldos pertencem ao backend.
 - Não inventar regras ausentes, fatores automáticos, déficits/superávits ou equivalências entre metodologias.
 - Não preservar modelos incorretos apenas por compatibilidade. Refatorar quando houver benefício concreto, sem abstrações especulativas.
-- Não usar Lombok nem adicionar dependências sem necessidade técnica real.
+- Não usar Lombok nem adicionar dependências sem necessidade técnica real. Se o usuário pedir algo que conflite com esta ou outra regra deste documento, apresentar as opções e **perguntar** antes de decidir. Exceção já decidida pelo usuário (16/09): `@angular/cdk` 22.1.6 no `nutrition-web`, para arrastar e soltar refeições.
 - Executar build e testes após mudanças de código. Atualizar este documento quando contratos ou decisões de domínio mudarem.
 - Nunca copiar credenciais de ambiente/IDE para código, documentação, exemplos ou logs.
 - Não gerar o JAR (`mvn package`/`verify`) com a API rodando a partir de `target/`: o build sobrescreve o JAR em uso e quebra o processo em execução. Parar a API antes ou usar apenas `mvn test`.
@@ -27,7 +27,8 @@ O desenvolvimento é organizado por **épico → features**. Tela não é featur
 | 1 | Estimativa energética | `energy` · `POST /api/energy-estimates` | **Em foco** |
 | 2 | Metas nutricionais (prescrição + macros) | `targets` · `POST /api/energy-prescriptions/per-kg`, `POST /api/target-calculations` | **Em foco** (após estimativa) |
 | — | Catálogo de alimentos | `food` · `GET /api/foods`, `GET /api/foods/{id}` | Fechamento leve (ver abaixo) |
-| — | Composição da dieta | `calculation` · `POST /api/diet-calculations` | Adiada: será redesenhada |
+| — | Composição da dieta | `calculation` · `POST /api/diet-calculations` | Refeições implementadas; redesenho amplo adiado |
+| 3 | Refeições (parte da composição) | `calculation` · `POST /api/diet-calculations` com `meals` | **Implementada e validada tecnicamente**, com ampliações pedidas pelo usuário em 16/09 (horário, arrastar e soltar, composição como meta) — aguardando validação do nutricionista e merge; [especificação](docs/features/refeicoes.md) |
 
 **Catálogo de alimentos:** o PostgreSQL atual é **temporário**, usado só para fornecer dados reais aos testes da calculadora; outro banco será adotado no futuro. Não investir nele (limpeza de colunas legadas, migrations, pipeline de importação, ajuste de busca). O que deve permanecer estável é o contrato: interface `FoodCatalog` e `FoodResponse` (id, nome, fonte, nutrientes por 100 g). Trocar de banco = nova implementação de `FoodCatalog`. Ponto a decidir quando o novo banco for escolhido: tipo do ID do alimento (hoje `Long`), que afeta `foodId` na composição.
 
@@ -107,6 +108,7 @@ A razão dessa separação é permitir que os cálculos sejam ferramentas de apo
 - Percentuais exigem a **meta prescrita**, não apenas uma estimativa; soma exatamente 100%, com 4/4/9 kcal/g.
 - Ausência de meta é `null`; macro com meta zero é diferente de ausência. Sem meta não há restante. Restante negativo é válido.
 - Composição usa os nutrientes da base por 100 g, proporcionalmente à quantidade. Kcal da fonte não são reconstruídas a partir dos macros.
+- **Composição como meta (16/09, decisão do usuário):** ação explícita "Definir composição como meta" no resumo do dia. A meta energética recebe o total de kcal consumidas do dia; as metas de macros passam a `PERCENTAGE`, com percentuais proporcionais à energia de cada macro pela conversão 4/4/9 kcal/g (C×4, P×4, G×9 sobre a soma), 4 casas decimais e o resíduo do arredondamento somado à maior fatia para totalizar exatamente 100. O anel de energia fica em 100%; os de macros ficam próximos de 100% (não exatos), porque as kcal da tabela de alimentos diferem da soma 4/4/9 — limitação aceita pelo usuário. Se já houver meta, a substituição exige confirmação. Sem kcal ou sem macros consumidos, o backend rejeita com 400.
 
 ## 6. Métodos energéticos implementados
 
@@ -176,7 +178,7 @@ Backend em `nutrition-api`: Java 25, Spring Boot 4.1.1, Maven, JAR; package `com
 | `patient` | Contexto temporário, sem JPA e sem atividade universal |
 | `energy` | `EnergyEstimator`, equações separadas DRI/FAO, request/response e controller |
 | `targets` | `TargetCalculator`, `MacroTargetCalculator`, `PerKgPrescriptionCalculator`, prescrição e macros opcionais |
-| `calculation` | `DietCalculator`, porções, totais e saldos; alimentos carregados em uma única consulta (`FoodCatalog.findAllById`) |
+| `calculation` | `DietCalculator`, porções, totais e saldos; refeições temporárias com `MealRequest`/`CalculatedMeal`; alimentos do dia carregados em uma única chamada (`FoodCatalog.findAllById`) |
 | `food` | Entidade/repository e catálogo somente leitura |
 | `shared` | `DecimalPrecision` e erro de cálculo com campo |
 | `api` | Tradução de erros para ProblemDetail |
@@ -194,6 +196,7 @@ Foi removido `EnergyTargetCalculator` e o antigo objeto `energy` de definição 
 | POST | `/api/energy-estimates` | Estimativa independente |
 | POST | `/api/energy-prescriptions/per-kg` | Meta direta por peso × kcal/kg |
 | POST | `/api/target-calculations` | Prescrição explícita, diferença e macros |
+| POST | `/api/target-calculations/from-composition` | Converte os totais consumidos do dia em meta energética e percentuais de macros |
 | POST | `/api/diet-calculations` | Composição e comparação opcional |
 
 Exemplo de estimativa:
@@ -221,23 +224,29 @@ Retorna `prescription` com diferença -1093.72, `macros` resolvidos e `targets` 
 
 `referenceEstimateKcal` é um valor resolvido transportado pelo cliente apenas para comparação. Não é uma estimativa persistida/auditada e não reexecuta sua fórmula. Referência sozinha nunca gera prescrição. Se houver futura persistência/auditoria, definir como vincular método, parâmetros, versão da equação e decisão profissional.
 
-Composição aceita `foods` obrigatório e `targets` opcional. Recebe apenas IDs e quantidades dos alimentos. Cada saldo tem `target`, `consumed`, `remaining`; target/remaining são null sem meta. Lista vazia é válida. Exemplos em `nutrition-api/examples` usam fixtures sintéticas dos testes: não interpretar os IDs/valores como dados TACO.
+Composição aceita `meals` obrigatório e `targets` diário opcional. `foods` antigo na raiz é rejeitado com 400. Cada refeição contém `name` (trim, obrigatório, não branco, até 60 caracteres) e `foods` obrigatório com IDs/quantidades. Até 20 refeições e 500 porções somadas no dia; nomes e alimentos repetidos são permitidos. Dia vazio e refeição vazia são válidos.
+
+Resposta `meals` mantém a ordem do pedido, com `name`, porções calculadas e `totals` simples (`NutritionValues`), sem metas por refeição. `totals` na raiz compara todo o dia com as metas em `Balance`: `target`, `consumed`, `remaining`; target/remaining são null sem meta. Total diário usa todas as porções exatas, nunca totais arredondados de refeições. Soma de totais exibidos pode diferir em centésimos do total do dia. Erros usam `meals[1].name`, `meals[0].foods[2].quantityG`; limite total de porções usa `meals`. Exemplos em `nutrition-api/examples` usam fixtures sintéticas dos testes: não interpretar os IDs/valores como dados TACO.
 
 Correção posterior em 16/09: bolso passou de estimativa para prescrição direta. Esta regra substitui expressamente a interpretação anterior de exigir o botão de aplicar também para bolso.
 
 ## 10. Estados da interface
 
-- Paciente, estimativa, prescrição e macros são quatro blocos visuais separados. Legendas auxiliares ficam em ícones “i”, acessíveis por hover/foco e dispensáveis com Esc.
-- Dados do paciente visíveis, seguidos de estimativa, prescrição, macros e composição.
+- Paciente e configurações de estimativa/prescrição/macros ficam nos painéis laterais da interface atual. O resumo diário usa anéis. Essas decisões do trabalho com outro modelo foram preservadas.
+- Refeições começam vazias, com seis atalhos e nome livre. Cada refeição é uma linha retrátil em grid de colunas compartilhado: `[alça] horário | nome | itens/peso/ação | C | P | G | kcal | remover`. Recolhida mostra só o resumo; o botão "N itens" abre/fecha. Campos editáveis (horário, nome, peso) têm fundo branco e borda; valores só de leitura não têm borda. Renomear clicando no nome. Reordenar arrastando pela alça (`@angular/cdk`, decisão do usuário) ou com ↑/↓ na alça. Exclusão com alimentos pede confirmação; refeição vazia é excluída diretamente.
+- **Horário da refeição (16/09, decisão do usuário):** campo opcional HH:mm em 24 h (máscara própria, sem AM/PM), apenas na tela: **não é enviado à API** nem ordena as refeições.
+- **Resumo do dia:** anéis concêntricos (energia, C, P, G) que enchem até a meta; excedente aparece como segunda volta em tom mais escuro. Botão "Definir composição como meta": ação explícita "Definir composição como meta" no resumo do dia. A meta energética recebe o total de kcal consumidas do dia; as metas de macros passam a `PERCENTAGE`, com percentuais proporcionais à energia de cada macro pela conversão 4/4/9 kcal/g (C×4, P×4, G×9 sobre a soma), 4 casas decimais e o resíduo do arredondamento somado à maior fatia para totalizar exatamente 100. O anel de energia fica em 100%; os de macros ficam próximos de 100% (não exatos), porque as kcal da tabela de alimentos diferem da soma 4/4/9 — limitação aceita pelo usuário. Se já houver meta, a substituição exige confirmação. Sem kcal ou sem macros consumidos, o backend rejeita com 400. Ao aplicar, quando essa meta volta do backend com restante zero, há uma animação comemorativa (anéis de 0 ao valor, tremor e confetes), desativada com "reduzir movimento".
+- A busca de alimentos fica **dentro de cada refeição** (não há catálogo global): o botão "+ Adicionar alimento" do cartão abre a busca naquela refeição, com uma busca aberta por vez; criar uma refeição já abre sua busca. Nome de refeição nunca é enviado vazio: "Nova refeição" fica desabilitado sem nome, e ao apagar o nome de uma refeição o último nome válido continua sendo enviado e é restaurado ao sair do campo (correção de 16/09).
+- Quantidade recalcula ao confirmar (sair do campo/Enter); nome não recalcula; demais ações recalculam imediatamente. Cada nova requisição cancela a anterior. Totais por refeição e do dia vêm exclusivamente da API.
 - DRI é o método inicial automático, calculado após preencher sexo, idade, peso, altura e atividade DRI. Enquanto faltam dados, não são disparados erros automáticos. A prescrição manual continua disponível.
 - O botão discreto **Calcular estimativa energética com outra fórmula** revela a seleção FAO/bolso e permite voltar à DRI. O seletor começa recolhido; nenhum PAL ou fator é inferido.
 - A categoria DRI fica no perfil e seleciona uma equação; não é um multiplicador. As oito equações foram conferidas com o pedido de 16/09 e já coincidiam com ele.
 - Botão **Usar estimativa como meta** é a ação explícita de transferência. Editar a estimativa não atualiza esse campo automaticamente.
 - Diferença entre prescrição e estimativa vem do backend, assim como macros e saldos.
 - Estimativa, metas e composição têm requisições e erros independentes. Falha na estimativa permite continuar com prescrição manual e alimentos.
-- Comparações antigas são retiradas quando suas entradas mudam ou o recálculo falha; a composição é consultada sem metas enquanto elas são resolvidas novamente.
+- **Regra de atualização (16/09, decisão do usuário):** só a busca de alimentos consulta a cada letra (debounce 200 ms). Os demais campos digitados (paciente, PAL, kcal/kg, meta, percentuais, quantidades) só enviam requisição ao **confirmar**: sair do campo, Enter ou "Concluir"/fechar o painel; seletores confirmam na escolha. Renomear refeição não recalcula (o nome não altera nutrientes). Enquanto recalcula, os **últimos valores permanecem na tela** e são substituídos pela resposta; só são retirados em erro ou quando as entradas ficam incompletas. Substitui a regra anterior de retirar comparações a cada alteração, que causava piscar a cada tecla.
 - Busca: resultados recolhidos quando vazia, debounce 200 ms e cancelamento de consultas anteriores. Pesquisa por palavras AND, sem acento/ordem/caixa; `file frango` encontra `Frango, filé, à milanesa`. Não há fuzzy search ou sinônimos.
-- Quantidades: porção inicial de 100 g; edição recalcula após 200 ms. Estimativa/metas usam 300 ms. Nenhuma fórmula nutricional no Angular.
+- Quantidades: porção inicial de 100 g; edição recalcula ao confirmar. Estimativa/metas aguardam 300 ms após a confirmação (agrupa mudanças simultâneas). Nenhuma fórmula nutricional no Angular.
 - Recarregar a página descarta tudo; não há localStorage ou persistência do planejamento.
 
 ## 11. Banco e dados
@@ -261,8 +270,8 @@ Verificação de integridade antes/depois: 544 registros TACO e mesmo fingerprin
 - Porções somadas sem arredondamento intermediário; somas de valores já exibidos podem diferir em centésimos.
 - Saldo é meta exibida menos consumo exibido; negativos não são truncados.
 - HTTP 400 para erros de campo, combinações inválidas, condições não cobertas, JSON malformado e propriedades desconhecidas; 404 para alimento inexistente.
-- Bean Validation restringe dígitos e campos; erros de domínio também incluem identificação de campo em `errors`. Todo 400 traz `errors` (parâmetros de URL, tipos e propriedades desconhecidas identificam o campo, ex. `foods[0].foodId`); lista vazia só para JSON malformado sem campo identificável.
-- Lista de até 500 porções, IDs inteiros positivos, quantidades positivas com até 3 casas. Limites técnicos não são recomendações nutricionais.
+- Bean Validation restringe dígitos e campos; erros de domínio também incluem identificação de campo em `errors`. Todo 400 traz `errors` (parâmetros de URL, tipos e propriedades desconhecidas identificam o campo, ex. `meals[0].foods[0].foodId`); lista vazia só para JSON malformado sem campo identificável.
+- Até 20 refeições e 500 porções no dia, IDs inteiros positivos, quantidades positivas com até 3 casas. Limites técnicos não são recomendações nutricionais.
 
 ## 13. Executar e validar
 
@@ -287,8 +296,13 @@ No ambiente utilizado nesta entrega, o Java padrão do terminal pode não ser 25
 ## 14. Validação concluída
 
 - Validação atual de bolso no navegador: peso 120 kg e fator 20 preencheram diretamente 2400 kcal na meta e no resumo. O bloco de estimativa mostrou somente fator/troca de fórmula, sem cartão azul nem botão de aplicar.
-- Backend: **124 testes**, zero falhas/erros (`mvn test`, 16/09, após remoção dos macros `MANUAL`/`PER_KG`). O JAR em `target/` pode estar desatualizado: gerar com a API parada e reiniciá-la.
-- Frontend: **26 testes**, zero falhas, `npm run build` e `npm test` concluídos (layout com paciente/configurações em painéis laterais e resumo em anéis).
+- Estado atual (16/09, após revisão de código): **141 testes backend** e **44 testes frontend**, todos passando; `npm run build` concluído. Endpoint `from-composition` testado por unidade e API; ainda **não validado no navegador**, pois exige reiniciar a API com o JAR novo.
+- Refeições: **137 testes backend** passando em `mvn clean verify` e **30 testes frontend** em `npm test` (35 após: busca dentro das refeições, correção de nome vazio, refeições retráteis em linhas de pílulas com grid único de colunas, renomear clicando no nome, busca que fecha ao adicionar e reordenação por arrastar e soltar com Angular CDK — alça ⠿, pré-visualização e vizinhos deslizando; setas ↑↓ do teclado na alça); `npm run build` concluído. A primeira execução apontou codificação incorreta no exemplo JSON atualizado; o arquivo foi corrigido e o build completo passou.
+- A API foi parada antes de gerar o JAR, conforme seção 1, e reiniciada com PostgreSQL na porta 8081. Não houve alteração do catálogo ou banco.
+- Validação real no navegador: criação por atalho (Almoço) e nome livre (Jantar de teste), seleção de destino, mesmo alimento TACO `Frango, filé, à milanesa` (código 401) em duas refeições. Porções de 100 g exibiram 220,87 kcal por refeição; total diário 441,75 kcal, comprovando a soma antes do arredondamento.
+- Editar Almoço para 150 g produziu 331,31 kcal; somado ao Jantar de 100 g, total diário 552,18 kcal. Meta diária de 2000 produziu saldo 1447,82; nenhuma meta por refeição.
+- Renomear Jantar, mover para cima, cancelar exclusão, remover a porção do Almoço e confirmar exclusão do Jantar funcionaram. Restou Almoço vazio, total diário zero e saldo diário 2000. Captura visual conferida com os painéis e anéis existentes.
+- Cobertura adicionada: refeições vazias, repetições, precisão entre refeições, carga única, limites de refeições/porções, erros aninhados, rejeição de `foods` raiz, destino correto, cancelamento, reordenação e confirmação de exclusão.
 - Idioma pt-BR também configurado nos testes de interface.
 - Validação atual no navegador com API PostgreSQL: preencher homem, 30 anos, 80 kg, 175 cm, ACTIVE produziu DRI 3093.72 automaticamente, sem prescrição. Meta manual 2000 foi preservada ao abrir alternativas e escolher FAO; PAL começou vazio. Informar PAL 1.60 produziu 2865.38 e diferença -865.38. Retorno à DRI preservou o perfil.
 - API reiniciada com o JAR atualizado na porta 8081 após liberar a execução anterior que bloqueava o arquivo. Nenhuma alteração de banco foi necessária.
@@ -302,8 +316,10 @@ Os testes de backend usam fixtures e não exigem PostgreSQL. A conferência real
 
 ## 15. Limites e continuidade
 
-Não avançar automaticamente para cadastro, autenticação, persistência, múltiplas refeições, migrations, infraestrutura ou microsserviços. São futuras features a definir com o usuário.
+Não avançar automaticamente para cadastro, autenticação, persistência, migrations, infraestrutura ou microsserviços. Múltiplas refeições temporárias foram implementadas conforme [docs/features/refeicoes.md](docs/features/refeicoes.md), ampliadas pelo usuário com horário (só na tela), arrastar e soltar e composição como meta. Não ampliar para persistência, metas por refeição, ordenação automática por horário, receitas, duplicação ou mover alimentos entre refeições. São futuras features a definir com o usuário.
 
 Pendências de domínio: métodos pediátricos, gestação/lactação, eventual avaliação de atividade que derive PAL. Não há regras para essas ampliações e elas não devem ser inferidas.
 
 Ao iniciar uma nova sessão: conferir na seção 2 qual feature está em foco e trabalhar somente nela; ler este HANDOFF e os READMEs, inspecionar o código/estado atual, confirmar o novo escopo e manter a distinção entre estimativa, decisão profissional e consumo real. Validar mudanças com exemplos fornecidos pelo nutricionista e atualizar os testes, contratos e este documento em conjunto.
+
+A feature Refeições está implementada e validada tecnicamente. Não foi marcada como “Fechada” porque a definição da seção 2 inclui validação do nutricionista e merge em main; essas etapas cabem ao usuário. Nenhum comando Git foi executado.
