@@ -82,3 +82,316 @@ main>.main-column{position:static}
 @media(max-width:860px){.workspace-grid{grid-template-columns:1fr}.ring-card{position:static;order:-1}}
 
 .field-reference{display:block;margin-top:5px;font-size:10px;font-weight:400;color:var(--muted)}
+
+.meal-destination{padding:0 22px 18px}.meal-shortcuts{display:flex;flex-wrap:wrap;gap:8px;padding:0 22px 18px}.new-meal{display:flex;gap:10px;padding:0 22px 22px}.new-meal input{min-width:0;flex:1}.new-meal button{white-space:nowrap}.meals-empty{padding:0 22px 18px;margin:0;color:var(--muted);font-size:12px;line-height:1.6}.meal-card-header{padding:20px 22px 14px;display:flex;gap:14px;align-items:center}.meal-card-header>label{flex:1;min-width:0}.meal-actions{display:flex;gap:6px;align-items:center}.meal-totals{padding:0 22px 18px;display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--muted)}.meal-totals strong{color:var(--green)}.meal-confirmation{padding:12px 22px;margin:0 0 16px;background:#fff5eb;font-size:12px}.meal-confirmation button{margin-right:8px}@media(max-width:600px){.meal-card-header{flex-wrap:wrap}.meal-card-header>label{flex-basis:100%}.new-meal{flex-wrap:wrap}}
+
+/* Food search lives inside the meal it adds to. */
+.meal-food-search{border-top:1px solid var(--line);background:#fbfcfa;padding-top:14px}
+.meal-food-search-header{display:flex;align-items:center;gap:12px;padding:0 22px 12px;font-size:12px;color:#41513d}
+.meal-food-search-header .subtle-label{margin-right:auto}
+.meal-food-search .hint{margin:0;padding:0 22px 16px}
+.meal-name-hint{display:block;margin-top:5px;font-size:10px;font-weight:400;color:#9a5530}
+
+/* Meal rows: gray rows with white chips, one green primary action, gray icon buttons. */
+.meals-panel{padding-bottom:18px}
+.meal-list{display:grid;gap:10px;padding:0 18px}
+.meal-panel{background:#eceeeb;border-radius:12px;overflow:hidden}
+.meal-summary{display:flex;align-items:center;gap:8px;padding:10px 12px 10px 8px}
+.meal-reorder{display:grid;gap:1px}
+.meal-reorder button{border:0;background:transparent;color:#9aa39c;font-size:8px;line-height:1;padding:3px 5px;border-radius:4px}
+.meal-reorder button:hover:not(:disabled){background:#dfe3de;color:#4f5c53}
+.meal-reorder button:disabled{opacity:.3}
+.meal-chip{display:flex;align-items:center;gap:6px;height:36px;padding:0 12px;background:#fff;border:1px solid #e1e4df;border-radius:8px;font-size:13px;font-weight:500;color:#34423a;white-space:nowrap}
+.meal-name-chip{flex:1;min-width:120px;justify-content:space-between;overflow:hidden}
+.meal-name-chip strong{font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.meal-name-chip small{font-size:10px;color:var(--muted);font-weight:400}
+.meal-summary-values{display:flex;gap:6px}
+.meal-chip.macro{min-width:78px;justify-content:center}
+.meal-chip.macro i{width:7px;height:7px;border-radius:50%;background:var(--chip-dot)}
+.meal-chip.carb{--chip-dot:#4a84c4}.meal-chip.protein{--chip-dot:#d65a52}.meal-chip.fat{--chip-dot:#e3b53a}
+.meal-chip.kcal{min-width:92px;justify-content:center}
+.meal-toggle{display:flex;align-items:center;gap:6px;height:36px;padding:0 14px;border:0;border-radius:8px;background:#23a878;color:#fff;font-size:13px;font-weight:600;white-space:nowrap}
+.meal-toggle:hover{background:#1d9068}
+.meal-toggle.open{background:#5f6b63}
+.meal-toggle.open:hover{background:#4d5850}
+.meal-chevron{display:inline-block;transition:transform .2s}
+.meal-toggle.open .meal-chevron{transform:rotate(180deg)}
+.meal-icon-button{display:grid;place-items:center;width:36px;height:36px;border:0;border-radius:8px;background:#a7aea9;color:#fff}
+.meal-icon-button:hover{background:#c2574a}
+.meal-icon-button svg{width:17px;height:17px;fill:currentColor}
+
+
+
+
+.meal-confirmation{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 8px 8px;padding:10px 14px;border-radius:8px;background:#fff5eb;font-size:12px;color:#875333}
+.meal-confirmation p{margin:0 auto 0 0}
+.secondary-button.danger{border-color:#e7c3a9;color:#a94436}
+.pill-button{border:0;border-radius:6px;background:#8a959c;color:#fff;font-size:11px;font-weight:600;padding:5px 10px}
+.pill-button:hover{background:#6f7a81}
+.meal-bulk-actions{display:flex;gap:6px}
+.meal-shortcuts .secondary-button{background:#eceeeb;border-color:transparent;color:#3f4d44;font-weight:500}
+.meal-shortcuts .secondary-button:hover{background:#e0e4df}
+@media(max-width:900px){.meal-summary{flex-wrap:wrap}.meal-name-chip{flex-basis:calc(100% - 40px)}.meal-summary-values{flex-wrap:wrap;margin-left:30px}.meal-toggle{margin-left:auto}}
+
+/* Expanded meal: food rows as white chips on the gray row, same type scale as the summary. */
+.meal-panel{font-size:13px}
+.meal-chip{font-size:13px}
+.meal-icon-button.danger:hover{background:#c2574a}
+.meal-icon-button:not(.danger):hover{background:#7f8882}
+.meal-icon-button.subtle{background:transparent;color:#8a948d;font-size:20px}
+.meal-icon-button.subtle:hover{background:#dfe3de;color:#a94436}
+.meal-name-chip.editing{padding:0 8px}
+.meal-name-input{border:0;padding:0;height:100%;font-size:13px;font-weight:600;box-shadow:none!important;background:transparent}
+.meal-name-hint{color:#9a5530!important;white-space:nowrap}
+.meal-body{display:grid;gap:6px;padding:0 12px 12px 40px}
+.food-row{display:flex;align-items:center;gap:6px}
+.food-name-chip{flex:1;min-width:0;justify-content:space-between;font-weight:500}
+.food-name-chip strong{font-weight:500;overflow:hidden;text-overflow:ellipsis}
+.food-name-chip small{font-size:10px;color:var(--muted);font-weight:400;white-space:nowrap}
+.quantity-chip{width:96px;padding:0 10px 0 4px;font-size:13px;font-weight:500;color:var(--muted)}
+.quantity-chip input{border:0;padding:0 4px;height:100%;text-align:right;font-size:13px;font-weight:600;color:#34423a;box-shadow:none!important;background:transparent;-moz-appearance:textfield}
+.quantity-chip input::-webkit-inner-spin-button{appearance:none}
+.quantity-chip:focus-within{border-color:#49836a}
+.food-row .meal-chip.macro{min-width:70px}
+.food-row .meal-chip.kcal{min-width:84px}
+.food-row .meal-icon-button{flex:none}
+.meal-body-empty{margin:0;padding:10px 4px;color:var(--muted);font-size:13px}
+.add-food-row{height:38px;border:1px dashed #b9c2bb;border-radius:8px;background:transparent;color:#4f5c53;font-size:13px;font-weight:600}
+.add-food-row:hover{background:#e3e7e2;border-color:#8f9a92}
+.meal-food-search{display:grid;gap:6px;margin-top:4px;padding-top:10px;border-top:1px dashed #cdd3ce}
+.food-search-bar{display:flex;gap:8px;align-items:center}
+.search-chip{flex:1;display:flex;align-items:center;gap:8px;height:40px;padding:0 8px 0 12px;background:#fff;border:1px solid #d5dad6;border-radius:8px}
+.search-chip:focus-within{border-color:#49836a;box-shadow:0 0 0 3px #3a806315}
+.search-chip input{border:0;padding:0;height:100%;font-size:13px;box-shadow:none!important;background:transparent}
+.search-chip .search-icon{font-size:20px}
+.food-table{display:grid;gap:6px}
+.food-row.result .food-name-chip small{max-width:40%;overflow:hidden;text-overflow:ellipsis}
+.add-button{height:36px;padding:0 12px;border:0;border-radius:8px;background:#23a878;color:#fff;font-size:12px;font-weight:600;white-space:nowrap}
+.add-button:hover:not(:disabled){background:#1d9068}
+.food-pagination{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px;font-size:11px;color:var(--muted)}
+.food-pagination>div{display:flex;align-items:center;gap:10px}
+.meal-body .inline-error{padding:6px 4px}
+.meal-body .demo-notice{border-radius:8px}
+@media(max-width:900px){.meal-body{padding-left:12px}.food-row{flex-wrap:wrap}.food-name-chip{flex-basis:100%}}
+.meal-summary .meal-name-chip{min-width:190px}.meal-summary .meal-chip.macro{min-width:66px;padding:0 10px}.meal-summary .meal-chip.kcal{min-width:82px}
+.meal-chip strong{min-width:0;overflow:hidden;text-overflow:ellipsis}.food-row{min-width:0}.food-name-chip small{flex:none}
+
+/* Inputs inside chips: the chip itself shows focus; neutralize global label/input/focus rules. */
+.search-chip input,.quantity-chip input,.meal-name-input{margin:0;width:100%;min-width:0;border:0;border-radius:0;background:transparent;box-shadow:none!important;outline:none}
+.search-chip input:focus-visible,.quantity-chip input:focus-visible,.meal-name-input:focus-visible{outline:none}
+.search-chip{overflow:hidden}
+.search-chip .search-icon{font-size:18px;line-height:1;color:#8a948d;flex:none}
+.search-chip .text-button{flex:none}
+.food-search-bar .pill-button{height:40px;padding:0 14px;border-radius:8px;font-size:12px}
+.quantity-chip{gap:4px}
+.quantity-chip input{flex:1;height:auto;line-height:1}
+.quantity-chip:focus-within,.meal-name-chip.editing:focus-within{border-color:#49836a;box-shadow:0 0 0 3px #3a806315}
+
+/* One column grid shared by every row of a meal: [reorder] name | C | P | G | kcal | actions. */
+.meal-panel{--meal-cols:22px minmax(0,1fr) 76px 76px 76px 92px 190px}
+.meal-summary,.food-row,.food-search-bar,.food-pagination{display:grid;grid-template-columns:var(--meal-cols);gap:8px;align-items:center}
+.meal-summary{padding:10px 12px 10px 8px}
+.meal-summary-values{display:contents}
+.meal-summary .meal-name-chip,.meal-summary .meal-chip.macro,.meal-summary .meal-chip.kcal,.food-row .meal-chip.macro,.food-row .meal-chip.kcal{min-width:0;padding:0 8px}
+.meal-body{display:grid;gap:8px;padding:0 12px 14px 8px}
+.food-row>:first-child,.food-search-bar>:first-child,.food-pagination>:first-child{grid-column:2}
+.food-row .food-cell{display:flex;gap:8px;min-width:0}
+.food-row .food-name-chip{flex:1;min-width:0}
+.food-row .quantity-chip{flex:none;width:92px}
+.row-actions{display:flex;justify-content:flex-end;gap:8px;min-width:0}
+.meal-summary .row-actions .meal-toggle{flex:1;justify-content:center}
+.row-actions .add-button{width:100%;height:36px}
+.food-search-bar .search-chip{grid-column:2/7}
+.food-search-bar .pill-button{grid-column:7;width:100%}
+.meal-body-empty,.add-food-row,.meal-body .demo-notice,.meal-body .inline-error{margin-left:30px}
+.meal-food-search{display:grid;gap:8px;margin:0;padding:0;border:0;background:transparent}
+.food-table{display:grid;gap:8px}
+.food-pagination{padding:2px 0 0}
+.food-pagination>div{grid-column:3/-1;justify-content:flex-end}
+@media(max-width:900px){
+  .meal-summary,.food-row,.food-search-bar,.food-pagination{display:flex;flex-wrap:wrap}
+  .meal-summary-values{display:flex;flex-wrap:wrap;gap:8px}
+  .food-row .food-cell{flex-basis:100%}
+  .row-actions{margin-left:auto}
+  .food-search-bar .search-chip{flex:1}
+  .meal-body-empty,.add-food-row,.meal-body .demo-notice,.meal-body .inline-error{margin-left:0}
+}
+.meal-panel{--meal-cols:18px minmax(0,1fr) 66px 66px 66px 82px 164px}
+.meal-summary,.food-row,.food-search-bar,.food-pagination{gap:6px}
+.meal-body-empty,.add-food-row,.meal-body .demo-notice,.meal-body .inline-error{margin-left:24px}
+.food-row .food-cell{gap:6px}.food-row .quantity-chip{width:84px}
+.meal-summary .row-actions,.food-row .row-actions{gap:6px}
+@media(max-width:900px){.meal-body-empty,.add-food-row,.meal-body .demo-notice,.meal-body .inline-error{margin-left:0}}
+.food-row .row-actions .quantity-chip{flex:1;width:auto}
+
+/* Search results look like suggestions, not like chosen foods. */
+.food-results-title{margin:4px 0 0 24px;font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--muted)}
+.food-row.result .meal-chip{background:transparent;border:1px dashed #b9c1bb;color:#56635a}
+.food-row.result .food-name-chip strong{font-weight:500}
+.food-row.result:hover .meal-chip{background:#f4f6f3;border-style:solid}
+@media(max-width:900px){.food-results-title{margin-left:0}}
+
+/* Actions column sized for toggle + two icon buttons; green add-food action. */
+.meal-panel{--meal-cols:18px minmax(0,1fr) 66px 66px 66px 82px 176px}
+.meal-summary .row-actions .meal-toggle{min-width:0;padding:0 10px;gap:5px;overflow:hidden}
+.meal-summary .row-actions .meal-icon-button{width:34px;flex:none}
+.add-food-row{margin-left:24px;border:0;background:#23a878;color:#fff}
+.add-food-row:hover{background:#1d9068;border:0}
+@media(max-width:900px){.add-food-row{margin-left:0}}
+
+/* Meal name chip is the rename trigger. */
+button.meal-name-chip{cursor:text;text-align:left;font:inherit;font-size:13px}
+button.meal-name-chip:hover{border-color:#9fbfae;background:#fbfdfb}
+
+/* Drag handle for reordering meals. */
+.meal-drag-handle{display:grid;place-items:center;width:18px;height:36px;padding:0;border:0;border-radius:6px;background:transparent;color:#9aa39c;cursor:grab;touch-action:none}
+.meal-drag-handle:hover{background:#dfe3de;color:#4f5c53}
+.meal-drag-handle:active{cursor:grabbing}
+.meal-drag-handle svg{width:10px;height:16px;fill:currentColor}
+.cdk-drag-preview.meal-panel{box-shadow:0 14px 34px #1c2b2240;background:#e3e7e2;border-radius:12px}
+.cdk-drag-preview .meal-drag-handle{cursor:grabbing}
+.meal-drop-placeholder{min-height:56px;border:2px dashed #a9c9b8;border-radius:12px;background:#f1f7f3}
+.meal-list.cdk-drop-list-dragging .meal-panel:not(.cdk-drag-placeholder){transition:transform 220ms cubic-bezier(0,0,.2,1)}
+.cdk-drag-animating{transition:transform 220ms cubic-bezier(0,0,.2,1)}
+
+/* Light, translucent green actions (no heavy solid blocks). */
+.meal-toggle,.add-food-row,.add-button,.food-search-bar .pill-button,.meal-bulk-actions .pill-button{background:rgba(35,168,120,.12);color:#1b7050;border:1px solid rgba(35,168,120,.28);font-weight:600}
+.meal-toggle:hover,.add-food-row:hover,.add-button:hover:not(:disabled),.food-search-bar .pill-button:hover,.meal-bulk-actions .pill-button:hover{background:rgba(35,168,120,.2);border-color:rgba(35,168,120,.45);color:#155c41}
+.meal-toggle.open{background:rgba(35,168,120,.22);border-color:rgba(35,168,120,.5);color:#155c41}
+.meal-toggle.open:hover{background:rgba(35,168,120,.3)}
+.add-food-row{border-style:dashed}
+.meal-icon-button{background:rgba(40,60,50,.07);color:#7d8880;border:1px solid transparent}
+.meal-icon-button.danger:hover{background:rgba(194,87,74,.14);color:#b3473b;border-color:rgba(194,87,74,.3)}
+
+/* Estimate and targets: stronger presence at the top. */
+.config-bar{gap:16px;margin-bottom:26px}
+.config-button{position:relative;padding:20px 22px 18px 26px;border-radius:16px;gap:8px;box-shadow:0 2px 10px #223f310d;overflow:hidden}
+.config-button::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--config-accent,#23a878)}
+.config-button.estimate{--config-accent:#8cc4aa}
+.config-button.prescription{--config-accent:#23a878}
+.config-button.macros{--config-accent:linear-gradient(#4a84c4 0 33%,#d65a52 33% 66%,#e3b53a 66%)}
+.config-button.macros::before{background:var(--config-accent)}
+.config-label{font-size:11px;color:#4f5c53;letter-spacing:1px}
+.config-action{opacity:1;padding:3px 9px;border-radius:999px;background:rgba(35,168,120,.12);color:#1b7050;font-size:11px}
+.config-button:hover .config-action{background:rgba(35,168,120,.22)}
+.config-value{font-size:32px;letter-spacing:-1px;color:#1f4a36}
+.config-value small{font-size:13px}
+.config-detail{font-size:12px;color:#5f6d63}
+.macro-values{gap:18px;font-size:24px}
+.macro-values span{display:inline-flex;align-items:baseline;gap:5px}
+.macro-values i{align-self:center;width:9px;height:9px;border-radius:50%}
+.macro-values .macro-C i{background:#4a84c4}.macro-values .macro-P i{background:#d65a52}.macro-values .macro-G i{background:#e3b53a}
+.config-button.has-error::before{background:#e0a37f}
+
+/* Grid with a time column: [handle] time | name | C | P | G | kcal | actions. */
+.meal-panel{--meal-cols:18px 92px minmax(0,1fr) 66px 66px 66px 82px 124px}
+.food-row>:first-child{grid-column:2/4}
+.food-search-bar .search-chip{grid-column:2/8}
+.food-search-bar .pill-button{grid-column:8}
+.food-pagination>:first-child{grid-column:2/5}
+.food-pagination>div{grid-column:5/-1}
+.time-chip{padding:0 8px;justify-content:center;cursor:pointer}
+.time-chip input{width:100%;min-width:0;margin:0;padding:0;border:0;background:transparent;box-shadow:none!important;outline:none;font:inherit;font-size:13px;font-weight:600;color:#34423a;text-align:center}
+.time-chip input:focus-visible{outline:none}
+.time-chip.empty input{color:#a3aba5;font-weight:500}
+.time-chip:focus-within{border-color:#49836a;box-shadow:0 0 0 3px #3a806315}
+.time-chip input::-webkit-calendar-picker-indicator{opacity:.45;margin-left:2px;cursor:pointer}
+/* Chevron-only toggle. */
+.meal-summary .row-actions .meal-toggle{flex:none;width:36px;padding:0;justify-content:center}
+.meal-toggle .meal-chevron{width:22px;height:22px;fill:currentColor;transition:transform .2s}
+.meal-toggle.open .meal-chevron{transform:rotate(180deg)}
+@media(max-width:900px){.food-row>:first-child{grid-column:auto}}
+@media(max-width:1360px){.meal-panel{--meal-cols:18px 84px minmax(0,1fr) 60px 60px 60px 76px 116px}.meal-name-chip small{display:none}.meal-chip.macro,.meal-chip.kcal{font-size:12px}}
+.time-chip{cursor:text}.time-chip input{letter-spacing:.5px;font-variant-numeric:tabular-nums}
+.meal-panel{--meal-cols:18px 70px minmax(0,1fr) 66px 66px 66px 82px 124px}
+@media(max-width:1360px){.meal-panel{--meal-cols:18px 66px minmax(0,1fr) 60px 60px 60px 76px 116px}}
+@media(max-width:900px){.time-chip{width:70px;flex:none}}
+
+/* "Define composition as target" action in the day summary. */
+.composition-target{display:grid;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid #f0f2ed}
+.ring-action{height:40px;border-radius:10px;background:rgba(35,168,120,.12);color:#1b7050;border:1px solid rgba(35,168,120,.3);font-size:13px;font-weight:600}
+.ring-action:hover:not(:disabled){background:rgba(35,168,120,.2);border-color:rgba(35,168,120,.45)}
+.ring-action-note{margin:0;font-size:10px;line-height:1.5;color:var(--muted);text-align:center}
+.composition-confirm{display:grid;gap:10px;padding:12px;border-radius:10px;background:#f4f8f5;border:1px solid rgba(35,168,120,.25);font-size:12px;line-height:1.55;color:#3f4d44}
+.composition-confirm p{margin:0}
+.composition-confirm strong{font-weight:600;color:#1f4a36}
+.composition-confirm>div{display:flex;justify-content:flex-end;gap:8px}
+.composition-confirm .pill-button{height:32px;padding:0 12px;border-radius:8px;background:rgba(35,168,120,.14);color:#1b7050;border:1px solid rgba(35,168,120,.35)}
+.composition-confirm .pill-button.subtle{background:transparent;color:#5f6d63;border-color:#d5dad6}
+
+/* Celebration: rings fill from zero while the chart grows and shakes, then pops with confetti. */
+.ring-card.celebrating{overflow:visible}
+.ring-card.celebrating .ring-progress{animation:ring-fill 2.4s cubic-bezier(.45,0,.25,1) both}
+.ring-card.celebrating .ring-overflow{opacity:0}
+.ring-card.celebrating .ring-chart{animation:chart-build 2.4s ease-in,chart-pop .7s cubic-bezier(.2,1.8,.4,1) 2.4s forwards}
+@keyframes ring-fill{from{stroke-dashoffset:var(--ring-circumference)}}
+/* Shake grows with the fill: small wobble first, violent rattle right before the pop. */
+@keyframes chart-build{
+  0%{transform:scale(1) translate(0,0) rotate(0)}
+  10%{transform:scale(1.01) translate(-1px,0) rotate(-.6deg)}
+  18%{transform:scale(1.02) translate(1px,-1px) rotate(.8deg)}
+  26%{transform:scale(1.03) translate(-1px,1px) rotate(-1deg)}
+  34%{transform:scale(1.045) translate(2px,0) rotate(1.3deg)}
+  42%{transform:scale(1.06) translate(-2px,-1px) rotate(-1.6deg)}
+  50%{transform:scale(1.075) translate(2px,1px) rotate(1.9deg)}
+  57%{transform:scale(1.09) translate(-3px,0) rotate(-2.2deg)}
+  64%{transform:scale(1.1) translate(3px,-2px) rotate(2.5deg)}
+  70%{transform:scale(1.11) translate(-3px,2px) rotate(-2.8deg)}
+  76%{transform:scale(1.12) translate(4px,-1px) rotate(3deg)}
+  81%{transform:scale(1.13) translate(-4px,1px) rotate(-3.3deg)}
+  86%{transform:scale(1.14) translate(4px,-2px) rotate(3.5deg)}
+  90%{transform:scale(1.145) translate(-5px,2px) rotate(-3.8deg)}
+  94%{transform:scale(1.15) translate(5px,-1px) rotate(4deg)}
+  97%{transform:scale(1.155) translate(-5px,1px) rotate(-4deg)}
+  100%{transform:scale(1.16) translate(0,0) rotate(0)}
+}
+@keyframes chart-pop{0%{transform:scale(1.16)}35%{transform:scale(1.28)}100%{transform:scale(1)}}
+.confetti{position:absolute;left:50%;top:50%;width:0;height:0;pointer-events:none;z-index:5}
+.confetti i{position:absolute;left:-4px;top:-6px;width:8px;height:12px;border-radius:2px;opacity:0;animation:confetti-burst 1.4s cubic-bezier(.15,.7,.3,1) forwards}
+.confetti i.round{width:9px;height:9px;border-radius:50%}
+@keyframes confetti-burst{
+  0%{opacity:1;transform:translate(0,0) rotate(0) scale(.6)}
+  60%{opacity:1;transform:translate(var(--x),var(--y)) rotate(var(--r)) scale(1)}
+  100%{opacity:0;transform:translate(var(--x),calc(var(--y) + 90px)) rotate(calc(var(--r) * 1.4)) scale(.9)}
+}
+@media (prefers-reduced-motion: reduce){.ring-card.celebrating .ring-chart,.ring-card.celebrating .ring-progress{animation:none}}
+
+/* Columns: [handle] time | name | quantity/action | C | P | G | kcal | remove. */
+.meal-panel{--meal-cols:18px 70px minmax(0,1fr) 88px 66px 66px 66px 82px 36px}
+.food-row>:first-child{grid-column:2/4}
+.food-search-bar .search-chip{grid-column:2/-1}
+.food-pagination>:first-child{grid-column:2/6}
+.food-pagination>div{grid-column:6/-1}
+.meal-summary .meal-toggle{width:100%;justify-self:stretch}
+.meal-summary .row-actions .meal-toggle{width:100%}
+.food-row .quantity-chip{width:auto}
+.food-row.result .add-button{width:100%;padding:0 6px;font-size:12px}
+.search-chip .search-done{height:30px;padding:0 12px;border-radius:7px;font-size:12px;flex:none}
+@media(max-width:1360px){.meal-panel{--meal-cols:18px 66px minmax(0,1fr) 82px 60px 60px 60px 76px 34px}}
+@media(max-width:900px){.food-row>:first-child{grid-column:auto}.meal-summary .meal-toggle{width:36px}}
+.meal-summary .row-actions .meal-icon-button{width:100%}
+.food-search-bar .search-chip .search-done{width:auto;grid-column:auto;height:30px;padding:0 12px;border-radius:7px;font-size:12px;flex:none}
+.search-chip input{flex:1}
+
+/* Compact, centered collapse toggle. */
+.meal-summary .meal-toggle,.meal-summary .row-actions .meal-toggle{width:36px;height:36px;padding:0;justify-self:center;border-radius:10px}
+
+/* Read-only values look like labels; editable fields look like inputs. */
+.meal-panel .meal-chip{background:rgba(255,255,255,.55);border-color:transparent;box-shadow:none}
+.meal-panel .food-name-chip{background:rgba(255,255,255,.55);color:#34423a}
+.meal-panel .time-chip,.meal-panel .meal-name-chip,.meal-panel .quantity-chip{background:#fff;border:1px solid #c9d2cc;box-shadow:0 1px 2px #1c2b220f;cursor:text;transition:border-color .15s,box-shadow .15s}
+.meal-panel .time-chip:hover,.meal-panel .meal-name-chip:hover,.meal-panel .quantity-chip:hover{border-color:#6aa58a}
+.meal-panel .time-chip:focus-within,.meal-panel .meal-name-chip.editing:focus-within,.meal-panel .quantity-chip:focus-within{border-color:#49836a;box-shadow:0 0 0 3px #3a806322}
+.meal-panel .time-chip.empty{border-style:dashed}
+.meal-panel .quantity-chip input{cursor:text}
+/* Search results keep their dashed "suggestion" look. */
+.meal-panel .food-row.result .meal-chip{background:transparent;border:1px dashed #b9c1bb}
+
+/* Collapse toggle fills the quantity/action column: item count + chevron, flat light green. */
+.meal-summary .meal-toggle,.meal-summary .row-actions .meal-toggle{width:100%;height:36px;padding:0 8px 0 12px;justify-self:stretch;display:flex;align-items:center;justify-content:space-between;gap:4px;border:0;border-radius:8px;background:rgba(35,168,120,.1);color:#1b7050;font-size:12px;font-weight:600}
+.meal-summary .meal-toggle:hover{background:rgba(35,168,120,.18)}
+.meal-summary .meal-toggle.open{background:rgba(35,168,120,.18);color:#155c41}
+.meal-summary .meal-toggle.open:hover{background:rgba(35,168,120,.25)}
+.meal-summary .meal-toggle .meal-chevron{width:18px;height:18px;flex:none}
+.meal-count{white-space:nowrap}
+.meal-summary .meal-toggle,.meal-summary .row-actions .meal-toggle{justify-content:center;gap:6px;padding:0 10px}

@@ -149,11 +149,11 @@
         @if (estimationMethod === 'PER_KG') {
           <strong class="config-value">Fórmula de bolso</strong>
           <span class="config-detail">{{ estimateErrors().length ? 'Meta não calculada' : form.controls.estimation.controls.kcalPerKg.value !== null ? form.controls.estimation.controls.kcalPerKg.value + ' kcal/kg · define a meta' : 'Informe o fator kcal/kg' }}</span>
-        } @else if (estimateLoading()) {
-          <strong class="config-value">Calculando…</strong><span class="config-detail">{{ estimateLabels[estimationMethod] }}</span>
         } @else if (estimate(); as value) {
           <strong class="config-value">{{ value.estimatedKcal | number:'1.0-2' }} <small>kcal</small></strong>
           <span class="config-detail">{{ estimateLabels[value.method] }}@if (value.driActivity) { · {{ driLabels[value.driActivity] }} }@if (value.faoPal !== null) { · PAL {{ value.faoPal | number:'1.0-2' }} }</span>
+        } @else if (estimateLoading()) {
+          <strong class="config-value">Calculando…</strong><span class="config-detail">{{ estimateLabels[estimationMethod] }}</span>
         } @else if (estimateErrors().length) {
           <strong class="config-value">Não calculada</strong><span class="config-detail">Ver detalhes</span>
         } @else {
@@ -179,7 +179,7 @@
         @if (targetErrors().length) {
           <strong class="config-value">Não aplicadas</strong><span class="config-detail">Ver detalhes</span>
         } @else if (macroSummary.length) {
-          <strong class="config-value macro-values">@for (item of macroSummary; track item.label) { <span>{{ item.label }} {{ item.grams | number:'1.0-2' }}<small>g</small></span> }</strong>
+          <strong class="config-value macro-values">@for (item of macroSummary; track item.label) { <span [class]="'macro-' + item.label"><i aria-hidden="true"></i>{{ item.label }} {{ item.grams | number:'1.0-2' }}<small>g</small></span> }</strong>
           <span class="config-detail">{{ macroLabels[macroMethod] }}</span>
         } @else if (macroMethod !== 'NONE' && targetsLoading()) {
           <strong class="config-value">Calculando…</strong><span class="config-detail">{{ macroLabels[macroMethod] }}</span>
@@ -199,58 +199,131 @@
 
     <div class="workspace-grid">
       <div class="work-column">
-    <section class="panel catalog-panel">
-      <div class="section-title-row"><div class="section-heading"><h2>Escolha os alimentos</h2></div><span class="subtle-label">Valores por 100 g</span></div>
-      <form class="search" (ngSubmit)="loadFoods()" novalidate>
-        <span class="search-icon" aria-hidden="true">⌕</span>
-        <input aria-label="Buscar alimento" name="search" [ngModel]="query" (ngModelChange)="searchChanged($event)" placeholder="Busque por arroz, feijão, frango…" autocomplete="off">
-        @if (query) { <button type="button" class="secondary-button" (click)="searchChanged('')">Limpar</button> }
+    <section class="panel meals-panel" aria-label="Refeições">
+      <div class="section-title-row"><div class="section-heading"><h2>Refeições</h2><span class="count-badge">{{ meals().length }}</span></div>
+        @if (meals().length) { <div class="meal-bulk-actions"><button type="button" class="pill-button" (click)="setAllMealsExpanded(true)">expandir todas</button><button type="button" class="pill-button" (click)="setAllMealsExpanded(false)">recolher todas</button></div> }
+      </div>
+      @if (!meals().length) { <p class="meals-empty">Comece criando uma refeição para organizar os alimentos do dia.</p> }
+      <div class="meal-shortcuts">
+        @for (name of mealShortcuts; track name) { <button type="button" class="secondary-button" (click)="addMeal(name)">+ {{ name }}</button> }
+      </div>
+      <form class="new-meal" (ngSubmit)="addMeal(newMealName)">
+        <label class="sr-only" for="new-meal-name">Nome da nova refeição</label>
+        <input id="new-meal-name" name="newMealName" [(ngModel)]="newMealName" placeholder="Nome livre da refeição" autocomplete="off">
+        <button type="submit" class="secondary-button" [disabled]="!newMealName.trim()">Nova refeição</button>
       </form>
-      @if (!query.trim()) { <p class="hint">Digite para buscar alimentos e ver os resultados.</p> }
-      @if (catalogError()) { <div class="inline-error" role="alert">{{ catalogError() }} <button class="text-button" (click)="loadFoods()">Tentar novamente</button></div> }
-      @if (catalogLoading()) { <p class="loading-note" role="status">Buscando alimentos…</p> }
-      @if (catalog(); as page) {
-        @if (page.items[0]?.source === 'SYNTHETIC_DEVELOPMENT') { <p class="demo-notice">Catálogo de demonstração: os valores são fictícios.</p> }
-        <div class="table-scroll" [attr.aria-busy]="catalogLoading()">
-          <table class="food-table"><thead><tr><th>Alimento</th><th>kcal</th><th>Carb.</th><th>Prot.</th><th>Gord.</th><th><span class="sr-only">Ação</span></th></tr></thead>
-            <tbody>@for (food of page.items; track food.id) {
-              <tr><td><strong>{{ food.name }}</strong><small>{{ food.source }}@if (food.sourceCode) { · {{ food.sourceCode }} }</small></td><td>{{ food.energyKcal | number:'1.0-2' }}</td><td>{{ food.carbohydrateG | number:'1.0-2' }} g</td><td>{{ food.proteinG | number:'1.0-2' }} g</td><td>{{ food.fatG | number:'1.0-2' }} g</td><td><button class="add-button" (click)="addFood(food)" [disabled]="catalogLoading()" [attr.aria-label]="'Adicionar ' + food.name"><span aria-hidden="true">+</span> Adicionar</button></td></tr>
-            } @empty { <tr><td colspan="6" class="empty-catalog">Nenhum alimento encontrado. Experimente outro nome.</td></tr> }</tbody>
-          </table>
-        </div>
-        <div class="pagination"><span>{{ page.totalElements }} alimentos encontrados</span><div><button class="page-button" (click)="loadFoods(page.page - 1)" [disabled]="page.page === 0 || catalogLoading()" aria-label="Página anterior">←</button><span>Página {{ page.page + 1 }}</span><button class="page-button" (click)="loadFoods(page.page + 1)" [disabled]="(page.page + 1) * page.size >= page.totalElements || catalogLoading()" aria-label="Próxima página">→</button></div></div>
-      }
-    </section>
-
-    <section class="panel meal-panel">
-      <div class="section-title-row"><div class="section-heading"><h2>Composição da dieta</h2><span class="count-badge">{{ portions().length }}</span></div><span class="subtle-label">Ajuste as porções em gramas</span></div>
-      @if (!portions().length) {
-        <div class="empty-meal"><span class="plate-icon" aria-hidden="true">◉</span><h3>A refeição começa aqui</h3><p>Escolha um alimento acima para adicionar a primeira porção.</p></div>
-      } @else {
-        <div class="table-scroll"><table class="meal-table"><thead><tr><th>Alimento</th><th>Quantidade</th><th>kcal</th><th>Carb.</th><th>Prot.</th><th>Gord.</th><th><span class="sr-only">Ação</span></th></tr></thead><tbody>
-          @for (portion of portions(); track portion.key; let index = $index) {
-            <tr><td><strong>{{ portion.food.name }}</strong><small>{{ portion.food.source }}</small></td><td><div class="quantity-input"><input type="number" step="any" [ngModel]="portion.quantityG" (ngModelChange)="changeQuantity(portion.key, $event)" [attr.aria-label]="'Quantidade de ' + portion.food.name"><span>g</span></div></td>
-              @for (metric of metrics; track metric.key) {
-                <td>@if (result(); as response) { {{ response.foods[index].nutrients[metric.key] | number:'1.0-2' }} } @else { <span class="muted">—</span> }</td>
-              }
-              <td><button class="remove-button" (click)="removeFood(portion.key)" [attr.aria-label]="'Remover ' + portion.food.name">×</button></td>
-            </tr>
+      <div class="meal-list" cdkDropList cdkDropListLockAxis="y" (cdkDropListDropped)="dropMeal($event)">
+    @for (meal of meals(); track meal.key; let mealIndex = $index) {
+      <section class="meal-panel" cdkDrag cdkDragLockAxis="y" cdkDragPreviewContainer="parent" [class.collapsed]="!isMealExpanded(meal.key)" [attr.aria-label]="'Refeição ' + (mealIndex + 1)">
+        <div class="meal-summary">
+          <div class="meal-drop-placeholder" *cdkDragPlaceholder></div>
+          <button type="button" class="meal-drag-handle" cdkDragHandle
+            (keydown.arrowup)="$event.preventDefault(); moveMeal(meal.key, -1)" (keydown.arrowdown)="$event.preventDefault(); moveMeal(meal.key, 1)"
+            [attr.aria-label]="'Reordenar refeição ' + (mealIndex + 1) + ': arraste ou use as setas para cima e para baixo'" title="Arraste para reordenar">
+            <svg viewBox="0 0 10 16" aria-hidden="true"><circle cx="2.5" cy="3" r="1.4"/><circle cx="7.5" cy="3" r="1.4"/><circle cx="2.5" cy="8" r="1.4"/><circle cx="7.5" cy="8" r="1.4"/><circle cx="2.5" cy="13" r="1.4"/><circle cx="7.5" cy="13" r="1.4"/></svg>
+          </button>
+          <label class="meal-chip time-chip" [class.empty]="!meal.time" title="Horário da refeição">
+            <input type="text" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" [value]="meal.time" (input)="onMealTimeInput(meal.key, $event)" (blur)="commitMealTime(meal.key, $event)" (keydown.enter)="$any($event.target).blur()" [attr.aria-label]="'Horário da refeição ' + (mealIndex + 1) + ', formato 24 horas'">
+          </label>
+          @if (editingMealKey() === meal.key) {
+            <span class="meal-chip meal-name-chip editing">
+              <input class="meal-name-input" [ngModel]="meal.name" (ngModelChange)="renameMeal(meal.key, $event)" (blur)="finishEditMeal(meal.key)" (keydown.enter)="finishEditMeal(meal.key)" [attr.aria-label]="'Nome da refeição ' + (mealIndex + 1)">
+              @if (!meal.name.trim()) { <small class="meal-name-hint">mantendo "{{ meal.savedName }}"</small> }
+            </span>
+          } @else {
+            <button type="button" class="meal-chip meal-name-chip" (click)="startEditMeal(meal.key)" [attr.aria-label]="'Renomear refeição ' + (mealIndex + 1)" title="Clique para renomear"><strong>{{ meal.savedName }}</strong></button>
           }
-        </tbody></table></div>
-        <div class="meal-footer"><span>Adições e alterações de porção atualizam o cálculo.</span><button class="text-button" (click)="calculate()" [disabled]="calculating()">Recalcular refeição ↗</button></div>
-      }
+          <button type="button" class="meal-toggle" [class.open]="isMealExpanded(meal.key)" (click)="toggleMeal(meal.key)" [attr.aria-expanded]="isMealExpanded(meal.key)" [attr.aria-controls]="'meal-body-' + meal.key"
+            [attr.aria-label]="(isMealExpanded(meal.key) ? 'Ocultar alimentos de ' : 'Ver alimentos de ') + meal.savedName" [title]="isMealExpanded(meal.key) ? 'Ocultar alimentos' : 'Ver alimentos'">
+            <svg class="meal-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.7 9.3a1 1 0 0 1 1.4 0L12 13.2l3.9-3.9a1 1 0 1 1 1.4 1.4l-4.6 4.6a1 1 0 0 1-1.4 0L6.7 10.7a1 1 0 0 1 0-1.4z"/></svg>
+            <span class="meal-count">{{ meal.foods.length }} {{ meal.foods.length === 1 ? 'item' : 'itens' }}</span>
+          </button>
+          <span class="meal-summary-values">
+            @let calculated = result()?.meals?.[mealIndex];
+            <span class="meal-chip macro carb" title="Carboidratos"><i aria-hidden="true"></i><span class="sr-only">Carboidratos </span>{{ calculated ? (calculated.totals.carbohydrateG | number:'1.0-1') + 'g' : '—' }}</span>
+            <span class="meal-chip macro protein" title="Proteínas"><i aria-hidden="true"></i><span class="sr-only">Proteínas </span>{{ calculated ? (calculated.totals.proteinG | number:'1.0-1') + 'g' : '—' }}</span>
+            <span class="meal-chip macro fat" title="Gorduras"><i aria-hidden="true"></i><span class="sr-only">Gorduras </span>{{ calculated ? (calculated.totals.fatG | number:'1.0-1') + 'g' : '—' }}</span>
+            <span class="meal-chip kcal">{{ calculated ? (calculated.totals.energyKcal | number:'1.0-0') + ' kcal' : '— kcal' }}</span>
+          </span>
+          <div class="row-actions">
+          <button type="button" class="meal-icon-button danger" (click)="requestRemoveMeal(meal.key)" [attr.aria-label]="'Excluir refeição ' + (mealIndex + 1)" title="Excluir refeição">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12H7L6 9zm4 2v8h2v-8h-2zm4 0v8h2v-8h-2z"/></svg>
+          </button>
+          </div>
+        </div>
+        @if (pendingMealRemoval() === meal.key) {
+          <div class="meal-confirmation" role="alertdialog" aria-label="Confirmar exclusão da refeição">
+            <p>Excluir {{ meal.savedName }} e todos os seus alimentos?</p>
+            <button type="button" class="secondary-button" (click)="pendingMealRemoval.set(null)">Cancelar</button>
+            <button type="button" class="secondary-button danger" (click)="removeMeal(meal.key)">Confirmar exclusão</button>
+          </div>
+        }
+        @if (isMealExpanded(meal.key)) {
+        <div class="meal-body" [id]="'meal-body-' + meal.key">
+          @for (portion of meal.foods; track portion.key; let index = $index) {
+            @let calculatedFood = result()?.meals?.[mealIndex]?.foods?.[index];
+            <div class="food-row">
+              <span class="meal-chip food-name-chip" [title]="portion.food.name + ' · ' + portion.food.source"><strong>{{ portion.food.name }}</strong></span>
+              <label class="meal-chip quantity-chip"><input type="number" step="any" [ngModel]="portion.quantityG" [ngModelOptions]="{ updateOn: 'blur' }" (ngModelChange)="changeQuantity(meal.key, portion.key, $event)" (keydown.enter)="$any($event.target).blur()" [attr.aria-label]="'Quantidade de ' + portion.food.name + ' na refeição ' + (mealIndex + 1)"><span>g</span></label>
+              <span class="meal-chip macro carb" title="Carboidratos"><i aria-hidden="true"></i><span class="sr-only">Carboidratos </span>{{ calculatedFood ? (calculatedFood.nutrients.carbohydrateG | number:'1.0-1') + 'g' : '—' }}</span>
+              <span class="meal-chip macro protein" title="Proteínas"><i aria-hidden="true"></i><span class="sr-only">Proteínas </span>{{ calculatedFood ? (calculatedFood.nutrients.proteinG | number:'1.0-1') + 'g' : '—' }}</span>
+              <span class="meal-chip macro fat" title="Gorduras"><i aria-hidden="true"></i><span class="sr-only">Gorduras </span>{{ calculatedFood ? (calculatedFood.nutrients.fatG | number:'1.0-1') + 'g' : '—' }}</span>
+              <span class="meal-chip kcal">{{ calculatedFood ? (calculatedFood.nutrients.energyKcal | number:'1.0-0') + ' kcal' : '— kcal' }}</span>
+              <div class="row-actions">
+                <button type="button" class="meal-icon-button subtle" (click)="removeFood(meal.key, portion.key)" [attr.aria-label]="'Remover ' + portion.food.name + ' da refeição ' + (mealIndex + 1)" title="Remover alimento">×</button></div>
+            </div>
+          } @empty { <p class="meal-body-empty">Nenhum alimento nesta refeição.</p> }
+
+          @if (foodSearchMealKey() === meal.key) {
+            <div class="meal-food-search">
+              <div class="food-search-bar">
+                <form class="search-chip" (ngSubmit)="loadFoods()" novalidate>
+                  <span class="search-icon" aria-hidden="true">⌕</span>
+                  <input aria-label="Buscar alimento" name="search" [ngModel]="query" (ngModelChange)="searchChanged($event)" [placeholder]="'Buscar alimento para ' + meal.savedName + '…'" autocomplete="off">
+                  @if (query) { <button type="button" class="text-button" (click)="searchChanged('')">Limpar</button> }
+                  <button type="button" class="pill-button search-done" (click)="closeFoodSearch()">concluir</button>
+                </form>
+              </div>
+              @if (catalogError()) { <div class="inline-error" role="alert">{{ catalogError() }} <button type="button" class="text-button" (click)="loadFoods()">Tentar novamente</button></div> }
+              @if (catalogLoading()) { <p class="meal-body-empty" role="status">Buscando alimentos…</p> }
+              @if (catalog(); as page) {
+                @if (page.items[0]?.source === 'SYNTHETIC_DEVELOPMENT') { <p class="demo-notice">Catálogo de demonstração: os valores são fictícios.</p> }
+                <p class="food-results-title">Resultados da busca · valores por 100 g</p>
+                <div class="food-table" [attr.aria-busy]="catalogLoading()" aria-label="Resultados da busca (valores por 100 g)">
+                  @for (food of page.items; track food.id) {
+                    <div class="food-row result">
+                      <span class="meal-chip food-name-chip" [title]="food.name + ' · ' + food.source + (food.sourceCode ? ' ' + food.sourceCode : '') + ' · valores por 100 g'"><strong>{{ food.name }}</strong></span>
+                      <button type="button" class="add-button" (click)="addFood(food)" [disabled]="catalogLoading()" [attr.aria-label]="'Adicionar ' + food.name + ' a ' + meal.savedName">+ adicionar</button>
+                      <span class="meal-chip macro carb" title="Carboidratos por 100 g"><i aria-hidden="true"></i><span class="sr-only">Carboidratos </span>{{ food.carbohydrateG | number:'1.0-1' }}g</span>
+                      <span class="meal-chip macro protein" title="Proteínas por 100 g"><i aria-hidden="true"></i><span class="sr-only">Proteínas </span>{{ food.proteinG | number:'1.0-1' }}g</span>
+                      <span class="meal-chip macro fat" title="Gorduras por 100 g"><i aria-hidden="true"></i><span class="sr-only">Gorduras </span>{{ food.fatG | number:'1.0-1' }}g</span>
+                      <span class="meal-chip kcal">{{ food.energyKcal | number:'1.0-0' }} kcal</span>
+                    </div>
+                  } @empty { <p class="meal-body-empty">Nenhum alimento encontrado. Experimente outro nome.</p> }
+                </div>
+                <div class="food-pagination"><span>{{ page.totalElements }} alimentos · valores por 100 g</span><div><button type="button" class="page-button" (click)="loadFoods(page.page - 1)" [disabled]="page.page === 0 || catalogLoading()" aria-label="Página anterior">←</button><span>Página {{ page.page + 1 }}</span><button type="button" class="page-button" (click)="loadFoods(page.page + 1)" [disabled]="(page.page + 1) * page.size >= page.totalElements || catalogLoading()" aria-label="Próxima página">→</button></div></div>
+              }
+            </div>
+          } @else {
+            <button type="button" class="add-food-row" (click)="openFoodSearch(meal.key)">+ Adicionar alimento</button>
+          }
+        </div>
+        }
+      </section>
+    }
+      </div>
     </section>
     <p class="bottom-note">Os totais são calculados mesmo sem metas. Quando há uma meta, o restante negativo indica que ela foi ultrapassada. Planejamento temporário: os dados não são salvos ao recarregar a página.</p>
       </div>
-      <aside class="summary ring-card" aria-label="Resumo nutricional" [attr.aria-busy]="calculating()">
-        <div class="summary-heading"><h2>Seu planejamento</h2><span class="summary-status" role="status">{{ calculating() ? 'Atualizando…' : result() ? 'Atualizado' : 'Aguardando cálculo' }}</span></div>
+      <aside class="summary ring-card" [class.celebrating]="celebrating()" aria-label="Resumo nutricional" [attr.aria-busy]="calculating()">
+        <div class="summary-heading"><h2>Total do dia</h2><span class="summary-status" role="status">{{ calculating() ? 'Atualizando…' : result() ? 'Atualizado' : 'Aguardando cálculo' }}</span></div>
         @let ringList = rings;
         <div class="ring-chart">
           <svg viewBox="0 0 240 240" aria-hidden="true">
             @for (ring of ringList; track ring.key) {
               <circle class="ring-track" cx="120" cy="120" [attr.r]="ring.radius" />
               <circle [class]="'ring-progress ' + ring.css" [class.exceeded]="ring.exceeded" [class.empty]="ring.progress === 0"
-                cx="120" cy="120" [attr.r]="ring.radius" [attr.stroke-dasharray]="ring.circumference" [attr.stroke-dashoffset]="ring.offset" transform="rotate(-90 120 120)" />
+                [style.--ring-circumference]="ring.circumference + 'px'" cx="120" cy="120" [attr.r]="ring.radius" [attr.stroke-dasharray]="ring.circumference" [attr.stroke-dashoffset]="ring.offset" transform="rotate(-90 120 120)" />
               @if (ring.overflow > 0) {
                 <circle [class]="'ring-overflow ' + ring.css" cx="120" cy="120" [attr.r]="ring.radius"
                   [attr.stroke-dasharray]="ring.circumference" [attr.stroke-dashoffset]="ring.overflowOffset" transform="rotate(-90 120 120)" />
@@ -259,13 +332,21 @@
           </svg>
           <div class="ring-center">
             @if (result(); as response) {
-              <strong>{{ response.totals.energyKcal.consumed | number:'1.0-0' }}</strong>
+              <strong>{{ (celebrationKcal() ?? response.totals.energyKcal.consumed) | number:'1.0-0' }}</strong>
               @if (response.totals.energyKcal.target !== null) {
                 <span>de {{ response.totals.energyKcal.target | number:'1.0-0' }} kcal</span>
                 <em [class.exceeded]="ringList[0].exceeded">{{ ringList[0].percent }}%@if (ringList[0].exceeded) { · acima da meta }</em>
               } @else { <span>kcal · sem meta</span> }
             } @else { <strong>—</strong><span>Aguardando cálculo</span> }
           </div>
+          @if (confetti().length) {
+            <div class="confetti" aria-hidden="true">
+              @for (piece of confetti(); track piece.id) {
+                <i [class.round]="piece.round" [style.background]="piece.color" [style.--x]="piece.x + 'px'" [style.--y]="piece.y + 'px'"
+                  [style.--r]="piece.rotate + 'deg'" [style.animation-delay]="piece.delay + 'ms'"></i>
+              }
+            </div>
+          }
         </div>
         <ul class="ring-legend">
           @for (ring of ringList; track ring.key) {
@@ -278,6 +359,27 @@
             </li>
           }
         </ul>
+        @if (result(); as response) {
+          @if (response.totals.energyKcal.consumed > 0) {
+            <div class="composition-target">
+              @if (compositionTarget(); as proposal) {
+                <div class="composition-confirm" role="alertdialog" aria-label="Confirmar nova meta">
+                  <p>Substituir a meta atual
+                    <strong>({{ form.controls.prescribedEnergyKcal.value !== null ? (form.controls.prescribedEnergyKcal.value | number:'1.0-2') + ' kcal' : 'sem meta energética' }}@if (macroMethod === 'PERCENTAGE') { · C {{ form.controls.macros.controls.carbohydrate.value | number:'1.0-1' }}% · P {{ form.controls.macros.controls.protein.value | number:'1.0-1' }}% · G {{ form.controls.macros.controls.fat.value | number:'1.0-1' }}% })</strong>
+                    pela composição atual
+                    <strong>({{ proposal.prescribedEnergyKcal | number:'1.0-2' }} kcal · C {{ proposal.carbohydratePercent | number:'1.0-1' }}% · P {{ proposal.proteinPercent | number:'1.0-1' }}% · G {{ proposal.fatPercent | number:'1.0-1' }}%)</strong>?</p>
+                  <div><button type="button" class="pill-button subtle" (click)="compositionTarget.set(null)">cancelar</button><button type="button" class="pill-button" (click)="applyCompositionTarget()">definir meta</button></div>
+                </div>
+              } @else {
+                <button type="button" class="ring-action" (click)="defineCompositionAsTarget()" [disabled]="compositionTargetLoading() || calculating()">
+                  {{ compositionTargetLoading() ? 'Calculando…' : 'Definir composição como meta' }}
+                </button>
+                <p class="ring-action-note">A meta energética recebe o total do dia e os macros, os percentuais equivalentes.</p>
+              }
+              @if (compositionTargetErrors().length) { <div class="target-error" role="alert"><ul>@for (error of compositionTargetErrors(); track $index) { <li>{{ error }}</li> }</ul></div> }
+            </div>
+          }
+        }
       </aside>
     </div>
 </main>

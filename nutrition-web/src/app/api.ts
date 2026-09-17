@@ -36,11 +36,12 @@ export interface TargetResponse {
   macros: { method: MacroMethod; carbohydrate: MacroTarget | null; protein: MacroTarget | null; fat: MacroTarget | null };
   targets: NutrientTargets;
 }
-export interface CalculationRequest { targets: NutrientTargets | null; foods: { foodId: number; quantityG: number | null }[] }
+export interface CompositionTargetResponse { prescribedEnergyKcal: number; carbohydratePercent: number; proteinPercent: number; fatPercent: number }
+export interface CalculationRequest { targets: NutrientTargets | null; meals: { name: string; foods: { foodId: number; quantityG: number | null }[] }[] }
 export interface Nutrients { energyKcal: number; carbohydrateG: number; proteinG: number; fatG: number }
 export interface Balance { target: number | null; consumed: number; remaining: number | null }
 export interface CalculationResponse {
-  foods: { foodId: number; name: string; source: string; sourceCode: string | null; quantityG: number; nutrients: Nutrients }[];
+  meals: { name: string; totals: Nutrients; foods: { foodId: number; name: string; source: string; sourceCode: string | null; quantityG: number; nutrients: Nutrients }[] }[];
   totals: { energyKcal: Balance; carbohydrateG: Balance; proteinG: Balance; fatG: Balance };
 }
 @Injectable({ providedIn: 'root' })
@@ -53,5 +54,8 @@ export class NutritionApi {
     return this.http.post<{ prescribedEnergyKcal: number }>('/api/energy-prescriptions/per-kg', request);
   }
   calculateTargets(request: TargetRequest) { return this.http.post<TargetResponse>('/api/target-calculations', request); }
+  targetsFromComposition(request: Nutrients) {
+    return this.http.post<CompositionTargetResponse>('/api/target-calculations/from-composition', request);
+  }
 }
 
