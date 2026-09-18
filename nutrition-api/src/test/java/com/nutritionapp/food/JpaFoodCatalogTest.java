@@ -14,7 +14,28 @@ import static org.mockito.Mockito.*;
 
 class JpaFoodCatalogTest {
     private final FoodRepository repository = mock(FoodRepository.class);
-    private final JpaFoodCatalog catalog = new JpaFoodCatalog(repository);
+    private final com.nutritionapp.nutrient.NutrientRepository nutrients = mock(com.nutritionapp.nutrient.NutrientRepository.class);
+    private final com.nutritionapp.nutrient.FoodNutrientRepository foodNutrients = mock(com.nutritionapp.nutrient.FoodNutrientRepository.class);
+    private final JpaFoodCatalog catalog = new JpaFoodCatalog(repository, nutrients, foodNutrients);
+
+    @Test
+    void groupsNutrientsByFoodFromASingleQuery() {
+        var definition = new com.nutritionapp.nutrient.NutrientDefinition("CALCIUM", "Cálcio", "mg",
+                com.nutritionapp.nutrient.NutrientCategory.MINERAL, 100, true);
+        var calcium = new com.nutritionapp.nutrient.FoodNutrientValue(definition, new BigDecimal("5.2"), com.nutritionapp.nutrient.NutrientStatus.VALUE);
+        var trace = new com.nutritionapp.nutrient.FoodNutrientValue(definition, BigDecimal.ZERO, com.nutritionapp.nutrient.NutrientStatus.TRACE);
+        var first = mock(com.nutritionapp.nutrient.FoodNutrient.class);
+        when(first.foodId()).thenReturn(10L); when(first.value()).thenReturn(calcium);
+        var second = mock(com.nutritionapp.nutrient.FoodNutrient.class);
+        when(second.foodId()).thenReturn(11L); when(second.value()).thenReturn(trace);
+        when(foodNutrients.findByFoodIds(List.of(10L, 11L, 12L))).thenReturn(List.of(first, second));
+        var result = catalog.nutrientsOf(List.of(10L, 11L, 12L));
+        assertThat(result).containsOnlyKeys(10L, 11L);
+        assertThat(result.get(10L)).containsExactly(calcium);
+        verify(foodNutrients, times(1)).findByFoodIds(any());
+        assertThat(catalog.nutrientsOf(List.of())).isEmpty();
+        verifyNoMoreInteractions(foodNutrients);
+    }
 
     @Test
     void retrievesStoredNutrientsAndSourceWithoutRecalculatingEnergy() {
