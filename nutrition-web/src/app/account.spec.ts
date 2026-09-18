@@ -142,9 +142,10 @@ describe('Login e pacientes independentes do planejamento', () => {
   it('interceptor envia token apenas para os caminhos protegidos da própria API', () => {
     login();
     const client = TestBed.inject(HttpClient);
-    const protectedUrls = ['/api/auth/me', '/api/patients', '/api/patients/id/archive', '/api/patients?page=1'];
+    const protectedUrls = ['/api/auth/me', '/api/patients', '/api/patients/id/archive', '/api/patients?page=1',
+      '/api/record-fields', '/api/record-templates', '/api/record-templates/id/default'];
     const publicUrls = ['/api/foods', '/api/energy-estimates', '/api/energy-prescriptions/per-kg', '/api/target-calculations',
-      '/api/diet-calculations', 'https://outside.example/api/patients', '/api/patients-other', '/api/auth/login'];
+      '/api/diet-calculations', 'https://outside.example/api/patients', '/api/patients-other', '/api/auth/login', '/api/record-fieldsx'];
 
     for (const url of [...protectedUrls, ...publicUrls]) {
       client.get(url).subscribe();
@@ -167,7 +168,7 @@ describe('Login e pacientes independentes do planejamento', () => {
     expect(navigate).toHaveBeenCalledWith('/login');
   });
 
-  it('barra lateral mostra Perfil, Pacientes e Planejamento, carrega o nome e oferece sair', () => {
+  it('barra lateral mostra Perfil, Pacientes, Prontuário e Planejamento, carrega o nome e oferece sair', () => {
     sessionStorage.setItem('nutrition.accessToken', 'test-session');
     const fixture = TestBed.createComponent(NutritionistLayout);
     fixture.detectChanges();
@@ -175,7 +176,7 @@ describe('Login e pacientes independentes do planejamento', () => {
     fixture.detectChanges();
     const sidebar: HTMLElement = fixture.nativeElement.querySelector('.sidebar');
     const links = Array.from(sidebar.querySelectorAll('.sidebar-links a')).map(link => [link.textContent!.trim(), link.getAttribute('href')]);
-    expect(links).toEqual([['Perfil', '/perfil'], ['Pacientes', '/pacientes'], ['Planejamento alimentar', '/planejamento']]);
+    expect(links).toEqual([['Perfil', '/perfil'], ['Pacientes', '/pacientes'], ['Prontuário', '/prontuario'], ['Planejamento alimentar', '/planejamento']]);
     expect(sidebar.textContent).toContain(nutritionist.name);
 
     (sidebar.querySelector('.sidebar-logout') as HTMLButtonElement).click();

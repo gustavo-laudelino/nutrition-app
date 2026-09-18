@@ -1,0 +1,85 @@
+<div class="account-page">
+  <div class="heading">
+    <div>
+      <h1>Modelos de prontuário</h1>
+      <p class="intro">Monte na Oficina o prontuário do seu jeito: escolha as perguntas, organize em seções e defina o tamanho de cada campo.</p>
+    </div>
+    @if (templates()?.length) {
+      <button type="button" (click)="openCreate()">Novo modelo</button>
+    }
+  </div>
+
+  @if (creating()) {
+    <section class="account-card create-card" aria-labelledby="create-title">
+      <h2 id="create-title">Novo modelo</h2>
+      <form (ngSubmit)="create()">
+        <label>Nome do modelo
+          <input name="name" [(ngModel)]="newName" maxlength="60" required [attr.aria-invalid]="createErrors().fields['name'] ? true : null">
+          <span class="field-error">{{ createErrors().fields['name'] }}</span>
+        </label>
+        <fieldset class="sources">
+          <legend>Começar com</legend>
+          <label class="source" [class.selected]="newSource === 'STARTER'">
+            <input type="radio" name="source" value="STARTER" [(ngModel)]="newSource">
+            <span><strong>Modelo inicial</strong> Seções e perguntas mais comuns para você ajustar.</span>
+          </label>
+          <label class="source" [class.selected]="newSource === 'BLANK'">
+            <input type="radio" name="source" value="BLANK" [(ngModel)]="newSource">
+            <span><strong>Em branco</strong> Uma seção vazia para montar do zero.</span>
+          </label>
+        </fieldset>
+        @if (createErrors().detail && !createErrors().fields['name']) { <p role="alert" class="error">{{ createErrors().detail }}</p> }
+        <div class="actions">
+          <button type="submit" [disabled]="busy() || !newName.trim()">Criar e abrir na Oficina</button>
+          <button type="button" class="plain" (click)="creating.set(false)">Cancelar</button>
+        </div>
+      </form>
+    </section>
+  }
+
+  @if (error()) { <p role="alert" class="error">{{ error() }}</p> }
+
+  @if (templates(); as list) {
+    @if (!list.length && !creating()) {
+      <section class="account-card empty-state">
+        <h2>Você ainda não tem modelos</h2>
+        <p>A Oficina é onde você monta o prontuário: arraste perguntas prontas para a folha, crie seções e ordene tudo como no seu atendimento.</p>
+        <div class="actions">
+          <button type="button" (click)="openCreate('STARTER')">Começar pelo modelo inicial</button>
+          <button type="button" class="plain" (click)="openCreate('BLANK')">Começar em branco</button>
+        </div>
+      </section>
+    }
+    <ul class="template-cards">
+      @for (template of list; track template.id) {
+        <li class="account-card template-card">
+          <div class="card-title">
+            <a [routerLink]="['/prontuario/modelos', template.id]">{{ template.name }}</a>
+            @if (template.isDefault) { <span class="badge">Padrão</span> }
+          </div>
+          <p class="card-meta">{{ template.sectionCount }} {{ template.sectionCount === 1 ? 'seção' : 'seções' }} ·
+            {{ template.fieldCount }} {{ template.fieldCount === 1 ? 'campo' : 'campos' }} ·
+            alterado em {{ template.updatedAt | date:'dd/MM/yyyy' }}</p>
+          @if (pendingDelete() === template.id) {
+            <div class="confirm" role="alertdialog" aria-label="Confirmar exclusão do modelo">
+              <p>Excluir o modelo {{ template.name }}?</p>
+              <div class="actions">
+                <button type="button" class="plain" (click)="pendingDelete.set(null)">Cancelar</button>
+                <button type="button" class="danger" (click)="remove(template.id)" [disabled]="busy()">Excluir</button>
+              </div>
+            </div>
+          } @else {
+            <div class="card-actions">
+              <a class="action-link" [routerLink]="['/prontuario/modelos', template.id]">Abrir na Oficina</a>
+              <button type="button" class="plain" (click)="duplicate(template.id)" [disabled]="busy()">Duplicar</button>
+              @if (!template.isDefault) { <button type="button" class="plain" (click)="makeDefault(template.id)" [disabled]="busy()">Tornar padrão</button> }
+              <button type="button" class="plain danger" (click)="pendingDelete.set(template.id)" [disabled]="busy()">Excluir</button>
+            </div>
+          }
+        </li>
+      }
+    </ul>
+  } @else if (!error()) {
+    <p role="status">Carregando modelos…</p>
+  }
+</div>

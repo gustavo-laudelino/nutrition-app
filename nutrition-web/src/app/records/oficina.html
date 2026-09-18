@@ -1,0 +1,260 @@
+<div class="oficina-page">
+  <p class="narrow-notice">A Oficina precisa de uma tela maior. <a routerLink="/prontuario/modelos">Voltar aos modelos</a></p>
+
+  @if (loadError()) {
+    <div class="oficina-message" role="alert">
+      <p>{{ loadError() }}</p>
+      <a routerLink="/prontuario/modelos">Voltar aos modelos</a>
+    </div>
+  } @else if (!loaded()) {
+    <p class="oficina-message" role="status">Abrindo a Oficina…</p>
+  } @else {
+    <div class="oficina" [class.previewing]="preview()">
+      <header class="oficina-bar">
+        <a class="back-link" routerLink="/prontuario/modelos">‹ Modelos</a>
+        <div class="template-title">
+          @if (editingName()) {
+            <input #nameInput id="template-name-input" class="name-input" [value]="name()" [maxLength]="maxName" aria-label="Nome do modelo"
+              (keydown.enter)="commitName(nameInput.value)" (keydown.escape)="cancelNameEdit()" (blur)="commitName(nameInput.value)">
+          } @else {
+            <h1 (dblclick)="startNameEdit()" title="Clique duplo para renomear">{{ name() }}</h1>
+            <button type="button" class="icon-button" (click)="startNameEdit()" aria-label="Renomear modelo" title="Renomear modelo">✎</button>
+          }
+          @if (isDefault()) { <span class="badge">Padrão</span> }
+        </div>
+        <span class="save-state" [class.unsaved]="dirty()">{{ saving() ? 'Salvando…' : dirty() ? 'Alterações não salvas' : 'Tudo salvo' }}</span>
+        <button type="button" class="bar-button" (click)="togglePreview()" [attr.aria-pressed]="preview()">{{ preview() ? 'Voltar à edição' : 'Pré-visualizar' }}</button>
+        <button type="button" class="bar-button primary" (click)="save()" [disabled]="!dirty() || saving()">Salvar</button>
+      </header>
+
+      @if (conflict()) {
+        <div class="banner" role="alert">
+          O modelo foi alterado em outra sessão. Recarregue para ver a versão salva (suas alterações desta tela serão descartadas).
+          <button type="button" (click)="reload()">Recarregar</button>
+        </div>
+      }
+      @if (saveErrors().detail) {
+        <div class="banner" role="alert">
+          {{ saveErrors().detail }}
+          @if (errorCode(); as code) { <strong>{{ entry(code).field.label }}:</strong> }
+          @for (message of errorMessages(); track $index) { <span>{{ message }}</span> }
+        </div>
+      }
+
+      @if (preview()) {
+        <section class="preview" aria-label="Pré-visualização do prontuário">
+          <p class="preview-note">Pré-visualização: experimente preencher. Nada aqui é salvo.</p>
+          <div class="preview-tabs" role="tablist" aria-label="Seções do prontuário">
+            @for (section of sections(); track section.key) {
+              <button type="button" role="tab" class="preview-tab" [class.active]="section.key === activeSection().key"
+                [attr.aria-selected]="section.key === activeSection().key" (click)="selectSection(section.key)">{{ section.name }}</button>
+            }
+          </div>
+          <div class="preview-sheet" role="tabpanel" [attr.aria-label]="activeSection().name">
+            @for (placement of activeSection().fields; track placement.code) {
+              <div [class]="'grid-item w-' + placement.width">
+                <app-field-preview [field]="entry(placement.code).field" [textRows]="placement.textRows" [interactive]="true" idPrefix="preview" />
+              </div>
+            } @empty {
+              <p class="quiet">Esta seção ainda não tem campos.</p>
+            }
+          </div>
+        </section>
+      } @else {
+        <div class="oficina-workspace">
+          <aside class="toolbox" aria-labelledby="toolbox-title">
+            <h2 id="toolbox-title">Ferramentas</h2>
+            <input type="search" class="toolbox-search" placeholder="Buscar pergunta" aria-label="Buscar pergunta"
+              [value]="search()" (input)="search.set($any($event.target).value)">
+            <p class="toolbox-hint">Arraste para a folha ou tecle Enter para adicionar à seção aberta.</p>
+            <div class="toolbox-scroll">
+              @for (category of toolbox(); track category.code) {
+                <section class="tool-category">
+                  <button type="button" class="category-toggle" [attr.aria-expanded]="isOpen(category.code)" (click)="toggleCategory(category.code)">
+                    <span>{{ category.name }}</span><span class="category-count">{{ category.fields.length }}</span>
+                  </button>
+                  @if (isOpen(category.code)) {
+                    <ul class="tool-list" cdkDropList cdkDropListSortingDisabled [cdkDropListConnectedTo]="['sheet-fields']" [cdkDropListEnterPredicate]="noDrop">
+                      @for (field of category.fields; track field.code) {
+                        @let used = usedCodes().has(field.code);
+                        <li class="tool" [class.used]="used" cdkDrag [cdkDragData]="field.code" [cdkDragDisabled]="used">
+                          <div class="tool-placeholder" *cdkDragPlaceholder></div>
+                          <button type="button" class="tool-button" (click)="addField(field.code)"
+                            [attr.aria-label]="used ? field.label + ', já está no modelo. Ir para o campo' : 'Adicionar ' + field.label + ' à seção ' + activeSection().name">
+                            <span class="type-icon" aria-hidden="true" [title]="typeLabel(field.type)">{{ typeIcon(field.type) }}</span>
+                            <span class="tool-label">{{ field.label }}</span>
+                            @if (used) { <span class="used-tag">no modelo</span> } @else { <span class="add-tag" aria-hidden="true">+</span> }
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                  }
+                </section>
+              } @empty {
+                <p class="quiet">Nenhuma pergunta encontrada.</p>
+              }
+            </div>
+          </aside>
+
+          <section class="sheet-column" aria-label="Folha do prontuário">
+            <div class="section-strip">
+              <div class="section-tabs" role="tablist" aria-label="Seções do modelo"
+                cdkDropList cdkDropListOrientation="horizontal" cdkDropListLockAxis="x" (cdkDropListDropped)="dropSection($event)">
+                @for (section of sections(); track section.key; let index = $index) {
+                  <div role="tab" class="section-tab" cdkDrag cdkDragLockAxis="x" cdkDragBoundary=".section-tabs"
+                    [cdkDragDisabled]="sections().length < 2 || editingSectionKey() === section.key"
+                    [id]="'section-tab-' + section.key" [class.active]="section.key === activeSection().key"
+                    [attr.aria-selected]="section.key === activeSection().key" aria-controls="sheet-panel"
+                    [tabIndex]="section.key === activeSection().key ? 0 : -1"
+                    [title]="section.name + ' · clique duplo para renomear'"
+                    (click)="selectSection(section.key)" (dblclick)="startRenameSection(section.key)"
+                    (contextmenu)="openSectionMenu(section.key, $event)"
+                    (keydown.arrowleft)="$event.preventDefault(); stepSection(-1)" (keydown.arrowright)="$event.preventDefault(); stepSection(1)"
+                    (keydown.f2)="$event.preventDefault(); startRenameSection(section.key)" (keydown.delete)="requestRemoveSection(section.key)">
+                    @if (editingSectionKey() === section.key) {
+                      <input #sectionName class="section-name-input" [id]="'section-name-' + section.key" [value]="section.name" [maxLength]="maxName"
+                        aria-label="Nome da seção" (keydown)="$event.stopPropagation()"
+                        (keydown.enter)="renameSection(section.key, sectionName.value); cancelRenameSection(section.key)"
+                        (keydown.escape)="cancelRenameSection(section.key)" (blur)="renameSection(section.key, sectionName.value)"
+                        (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (contextmenu)="$event.stopPropagation()">
+                    } @else {
+                      <span class="section-label">{{ section.name }}</span>
+                      <span class="section-count" aria-hidden="true">{{ section.fields.length }}</span>
+                      <span class="sr-only">, {{ section.fields.length }} {{ section.fields.length === 1 ? 'campo' : 'campos' }}</span>
+                    }
+                  </div>
+                }
+              </div>
+              <button type="button" class="section-add" (click)="addSection()" [disabled]="sections().length >= maxSections"
+                [attr.aria-label]="'Nova seção'" [title]="sections().length >= maxSections ? 'Limite de 20 seções' : 'Nova seção'">+</button>
+            </div>
+
+            <div class="sheet" id="sheet-panel" role="tabpanel" [attr.aria-labelledby]="'section-tab-' + activeSection().key">
+              @if (pendingSectionRemoval() === activeSection().key) {
+                <div class="confirm" role="alertdialog" aria-label="Confirmar exclusão da seção">
+                  <p>Excluir a seção {{ activeSection().name }}? Os {{ activeSection().fields.length }} campos voltam para a caixa de ferramentas.</p>
+                  <button type="button" (click)="pendingSectionRemoval.set(null)">Cancelar</button>
+                  <button type="button" class="danger" (click)="removeSection(activeSection().key)">Excluir seção</button>
+                </div>
+              }
+              <div id="sheet-fields" class="sheet-grid" cdkDropList cdkDropListOrientation="mixed"
+                [cdkDropListData]="activeSection().fields" (cdkDropListDropped)="dropOnSheet($event)">
+                @for (placement of activeSection().fields; track placement.code) {
+                  @let item = entry(placement.code);
+                  <div [class]="'grid-item sheet-field w-' + placement.width" cdkDrag [cdkDragData]="placement.code"
+                    [id]="'sheet-field-' + placement.code" tabindex="0"
+                    [class.selected]="selectedCode() === placement.code" [class.has-error]="errorCode() === placement.code"
+                    [attr.aria-label]="item.field.label + ', ' + typeLabel(item.field.type)" [attr.aria-pressed]="selectedCode() === placement.code"
+                    (click)="selectField(placement.code)" (contextmenu)="openFieldMenu(placement.code, $event)"
+                    (keydown.enter)="selectField(placement.code)"
+                    (keydown.alt.arrowup)="$event.preventDefault(); moveField(placement.code, -1)"
+                    (keydown.alt.arrowdown)="$event.preventDefault(); moveField(placement.code, 1)"
+                    (keydown.delete)="removeField(placement.code)">
+                    <div class="field-placeholder" *cdkDragPlaceholder></div>
+                    <div class="sheet-field-top">
+                      <span class="type-icon" aria-hidden="true">{{ typeIcon(item.field.type) }}</span>
+                      <span class="sheet-field-type">{{ typeLabel(item.field.type) }}</span>
+                      @if (item.field.sync) { <span class="sync-tag" title="Sincroniza com o cadastro do paciente">cadastro</span> }
+                      <button type="button" class="remove-field" (click)="$event.stopPropagation(); removeField(placement.code)"
+                        [attr.aria-label]="'Remover ' + item.field.label + ' do modelo'" title="Remover do modelo">×</button>
+                    </div>
+                    <app-field-preview [field]="item.field" [textRows]="placement.textRows" idPrefix="sheet" />
+                  </div>
+                }
+                @if (!activeSection().fields.length) {
+                  <p class="drop-hint">Arraste campos da caixa de ferramentas para cá.</p>
+                }
+              </div>
+            </div>
+          </section>
+
+          <aside class="properties" aria-labelledby="properties-title">
+            @if (selected(); as current) {
+              <h2 id="properties-title">{{ current.entry.field.label }}</h2>
+              <dl class="facts">
+                <dt>Tipo</dt><dd>{{ typeLabel(current.entry.field.type) }}</dd>
+                <dt>Categoria</dt><dd>{{ current.entry.category }}</dd>
+                @if (current.entry.field.unit) { <dt>Unidade</dt><dd>{{ current.entry.field.unit }}</dd> }
+                @if (current.entry.field.min !== undefined && current.entry.field.type !== 'SCALE') { <dt>Faixa</dt><dd>{{ current.entry.field.min }} a {{ current.entry.field.max }}</dd> }
+                @if (current.entry.field.type === 'SCALE') { <dt>Escala</dt><dd>{{ current.entry.field.min }} ({{ current.entry.field.minLabel }}) a {{ current.entry.field.max }} ({{ current.entry.field.maxLabel }})</dd> }
+                @if (current.entry.field.options?.length) { <dt>Opções</dt><dd>{{ current.entry.field.options!.length }}{{ current.entry.field.allowOther ? ' + Outro' : '' }}</dd> }
+                @if (current.entry.field.columns?.length) { <dt>Colunas</dt><dd>{{ current.entry.field.columns!.length }}</dd> }
+              </dl>
+              @if (current.entry.field.help) { <p class="help">{{ current.entry.field.help }}</p> }
+              @if (current.entry.field.sync) { <p class="sync-note">Sincroniza com o cadastro do paciente: o valor medido na consulta atualiza as medidas atuais.</p> }
+
+              <fieldset class="segmented">
+                <legend>Largura</legend>
+                @if (current.entry.field.type === 'TABLE') {
+                  <p class="quiet">Tabelas ocupam a largura inteira.</p>
+                } @else {
+                  @for (width of widths; track width.value) {
+                    <label [class.checked]="current.placement.width === width.value">
+                      <input type="radio" name="field-width" [value]="width.value" [checked]="current.placement.width === width.value"
+                        (change)="setWidth(current.code, width.value)">{{ width.label }}
+                    </label>
+                  }
+                }
+              </fieldset>
+              @if (current.entry.field.type === 'LONG_TEXT') {
+                <fieldset class="segmented">
+                  <legend>Altura</legend>
+                  @for (rows of textRows; track rows) {
+                    <label [class.checked]="current.placement.textRows === rows">
+                      <input type="radio" name="field-rows" [value]="rows" [checked]="current.placement.textRows === rows"
+                        (change)="setTextRows(current.code, rows)">{{ rows }} linhas
+                    </label>
+                  }
+                </fieldset>
+              }
+              <label class="section-select">Seção
+                <select (change)="moveFieldToSection(current.code, +$any($event.target).value)">
+                  @for (section of sections(); track section.key) {
+                    <option [value]="section.key" [selected]="section.key === current.section.key">{{ section.name }}</option>
+                  }
+                </select>
+              </label>
+              <button type="button" class="danger remove-from-template" (click)="removeField(current.code)">Remover do modelo</button>
+            } @else {
+              <h2 id="properties-title">Modelo</h2>
+              <dl class="facts">
+                <dt>Nome</dt><dd>{{ name() }}</dd>
+                <dt>Seções</dt><dd>{{ sections().length }}</dd>
+                <dt>Campos</dt><dd>{{ fieldCount() }}</dd>
+              </dl>
+              @if (isDefault()) {
+                <p class="quiet">Este é o modelo padrão, sugerido ao abrir uma consulta.</p>
+              } @else {
+                <button type="button" (click)="makeDefault()">Tornar padrão</button>
+              }
+              <p class="quiet">Selecione um campo na folha para ajustar largura, altura ou seção.</p>
+            }
+          </aside>
+        </div>
+      }
+    </div>
+
+    @if (sectionMenu(); as menu) {
+      @let index = sectionIndex(menu.key);
+      <div class="menu-backdrop" (click)="closeMenus()" (contextmenu)="$event.preventDefault(); closeMenus()" (wheel)="closeMenus()"></div>
+      <div class="oficina-menu" role="menu" aria-label="Ações da seção" [style.left.px]="menu.x" [style.top.px]="menu.y"
+        (keydown)="menuKey($event, 'section-tab-' + menu.key)">
+        <button type="button" role="menuitem" (click)="startRenameSection(+menu.key)">Renomear</button>
+        @if (index > 0) { <button type="button" role="menuitem" (click)="moveSectionBy(+menu.key, -1)">Mover para a esquerda</button> }
+        @if (index < sections().length - 1) { <button type="button" role="menuitem" (click)="moveSectionBy(+menu.key, 1)">Mover para a direita</button> }
+        @if (sections().length > 1) { <button type="button" role="menuitem" class="danger" (click)="requestRemoveSection(+menu.key)">Excluir seção</button> }
+      </div>
+    }
+    @if (fieldMenu(); as menu) {
+      <div class="menu-backdrop" (click)="closeMenus()" (contextmenu)="$event.preventDefault(); closeMenus()" (wheel)="closeMenus()"></div>
+      <div class="oficina-menu" role="menu" aria-label="Ações do campo" [style.left.px]="menu.x" [style.top.px]="menu.y"
+        (keydown)="menuKey($event, 'sheet-field-' + menu.key)">
+        @for (section of otherSections('' + menu.key); track section.key) {
+          <button type="button" role="menuitem" (click)="moveFieldToSection('' + menu.key, section.key)">Mover para {{ section.name }}</button>
+        }
+        <button type="button" role="menuitem" class="danger" (click)="removeField('' + menu.key)">Remover do modelo</button>
+      </div>
+    }
+  }
+  <p class="sr-only" aria-live="polite">{{ announcement() }}</p>
+</div>

@@ -41,11 +41,13 @@ export const authenticated: CanActivateFn = () => {
   return inject(Session).token() ? true : inject(Router).createUrlTree(['/login']);
 };
 
+const PROTECTED_PATHS = ['/api/auth/me', '/api/patients', '/api/record-fields', '/api/record-templates'];
+
 /** Only the protected API paths of this origin receive the token; calculator endpoints stay public. */
 export function protectedApi(url: string): boolean {
   const parsed = new URL(url, window.location.origin);
-  return parsed.origin === window.location.origin &&
-    (parsed.pathname === '/api/auth/me' || parsed.pathname === '/api/patients' || parsed.pathname.startsWith('/api/patients/'));
+  return parsed.origin === window.location.origin && PROTECTED_PATHS.some(path =>
+    parsed.pathname === path || parsed.pathname.startsWith(path + '/'));
 }
 
 export const sessionInterceptor: HttpInterceptorFn = (request, next) => {
