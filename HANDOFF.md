@@ -1,12 +1,33 @@
 # HANDOFF — Nutrition App
 
-Atualizado em **17/09/2026**, após implementar login de nutricionista e cadastro de pacientes. Testes e builds concluídos; validação integrada com PostgreSQL e telas autenticadas **pendente por ausência de `JWT_SECRET`**. API parada; nenhuma migração executada. Planejamento preservado.
+Atualizado em **18/09/2026**, após implementar **opções de refeição** e o **modelo genérico de nutrientes com a TACO completa e o relatório de micronutrientes** (ver seção 14). Antes disso (17/09): login de nutricionista e cadastro de pacientes. Testes e builds concluídos; validação integrada com PostgreSQL e telas autenticadas **pendente por ausência de `JWT_SECRET`**. API parada; nenhuma migração executada. Planejamento preservado.
 
 Este documento registra o estado entregue, as decisões de desenvolvimento e os cuidados para continuar em outra sessão. Os contratos detalhados estão em [nutrition-api/README.md](nutrition-api/README.md) e [nutrition-web/README.md](nutrition-web/README.md).
 
 ## Próxima sessão: pendências (registrado em 17/09/2026)
 
 Em ordem de prioridade. Ler antes de qualquer trabalho novo.
+
+0. **(18/09) Opções de refeição e nutrientes/relatório: implementados** ([opções](docs/features/opcoes-de-refeicao.md), [nutrientes](docs/features/nutrientes-e-relatorio.md)); testes e builds passando; V2/V3 e contrato conferidos num PostgreSQL descartável.
+
+   **O usuário precisa, nesta ordem:**
+   1. Parar a API em execução.
+   2. Gerar o JAR (`mvn package`).
+   3. Subir o JAR novo. Isso aplica V2 (esquema de nutrientes) e V3 (≈13,5 mil valores TACO) no PostgreSQL real; se V1 ainda não rodou, ela roda antes, e isso exige `JWT_SECRET`.
+
+   **Importante:** o Angular atual envia `options`. Com a API antiga, o cálculo retorna 400 até a troca do JAR.
+
+   **Depois, conferir no navegador:**
+   - abas de opções;
+   - "+" copiando a opção aberta;
+   - "Tornar opção 1" e remover opção;
+   - barra de fibra;
+   - relatório de micronutrientes, com e sem sexo/idade.
+
+   **Validar com o nutricionista:**
+   - os valores de referência IOM/FNB;
+   - a interpretação dos tokens da TACO (vazio/`*` = não analisado);
+   - o valor ilegível `",0,02"` (piridoxina do alimento 373), gravado como não analisado.
 
 1. **Revisar a entrega do Codex de login e pacientes** contra os critérios de aceite de [docs/features/autenticacao-e-pacientes.md](docs/features/autenticacao-e-pacientes.md), sem alterar código primeiro, e trazer a lista de achados. O usuário já testou no navegador: login, cadastro e pacientes funcionam. Para rodar a API é preciso `JWT_SECRET` (≥ 32 bytes) nas variáveis de ambiente, além de `DB_URL`/`DB_USERNAME`/`DB_PASSWORD`. Se o IntelliJ não encontrar pacotes do Spring Security, recarregar o projeto Maven: o Codex compilou com o repositório temporário `%TEMP%/nutrition-maven-repository`.
 2. **Corrigir dois defeitos no formulário de paciente** (`nutrition-web/src/app/patients/patient-form.*`):
@@ -17,7 +38,7 @@ Em ordem de prioridade. Ler antes de qualquer trabalho novo.
 5. **Commits pendentes do usuário:** entrega do Codex (login e pacientes), o teste do item 3 e esta atualização do HANDOFF.
 6. **Decisões antes do próximo épico:**
    - validar estimativa, metas e refeições com o nutricionista parceiro (nenhuma feature está "fechada");
-   - documento de arquitetura do **modelo genérico de nutrientes** (catálogo de nutrientes, composição por nutriente, metas com mínimo/máximo, valores ausentes como "Tr"/"NA", fonte de dados), a ser aplicado ao cálculo **antes** de persistir planos;
+   - ~~modelo genérico de nutrientes~~ **implementado em 18/09** (catálogo `nutrients`, `food_nutrients` com status Tr/NA/não analisado e fonte). Continuam futuras: metas de micronutrientes com mínimo/máximo, UL, outras fontes (USDA/TBCA);
    - depois: plano alimentar persistido vinculado ao paciente (plano como raiz; metas, refeições e porções com cópia dos nutrientes da época).
 
 Forma de trabalho combinada: especificações detalhadas em `docs/features/*.md` para o Codex executar entregas grandes; Claude revisa, corrige e documenta. Decisões que conflitam com regras deste documento são **perguntadas ao usuário** antes.
@@ -46,10 +67,11 @@ O desenvolvimento é organizado por **épico → features**. Tela não é featur
 | 2 | Metas nutricionais (prescrição + macros) | `targets` · `POST /api/energy-prescriptions/per-kg`, `POST /api/target-calculations` | **Em foco** (após estimativa) |
 | — | Catálogo de alimentos | `food` · `GET /api/foods`, `GET /api/foods/{id}` | Fechamento leve (ver abaixo) |
 | — | Composição da dieta | `calculation` · `POST /api/diet-calculations` | Refeições implementadas; redesenho amplo adiado |
+| 5 | Opções de refeição (abas "Opção 1", "+", só a Opção 1 conta) | `calculation` · `meals[].options[]` | **Implementada (18/09)**, testes/build passando — [especificação](docs/features/opcoes-de-refeicao.md) |
 | 4 | Porção pelo nutriente (dimensionar o peso do alimento por C, P, G ou kcal desejados) | `calculation` · `POST /api/portion-quantities` | **Implementada (17/09)**, testes/build passando; validação no navegador pendente de reiniciar a API com o JAR novo — [especificação](docs/features/porcao-por-nutriente.md) |
 | 3 | Refeições (parte da composição) | `calculation` · `POST /api/diet-calculations` com `meals` | **Implementada e validada tecnicamente**, com ampliações pedidas pelo usuário em 16/09 (horário, arrastar e soltar, composição como meta) — aguardando validação do nutricionista e merge; [especificação](docs/features/refeicoes.md) |
 
-**Catálogo de alimentos:** o PostgreSQL atual é **temporário**, usado só para fornecer dados reais aos testes da calculadora; outro banco será adotado no futuro. Não investir nele (limpeza de colunas legadas, migrations, pipeline de importação, ajuste de busca). O que deve permanecer estável é o contrato: interface `FoodCatalog` e `FoodResponse` (id, nome, fonte, nutrientes por 100 g). Trocar de banco = nova implementação de `FoodCatalog`. Ponto a decidir quando o novo banco for escolhido: tipo do ID do alimento (hoje `Long`), que afeta `foodId` na composição.
+**Catálogo de alimentos:** (exceção decidida em 17/09 e **executada em 18/09**: esquema de nutrientes no Flyway (V2) e importação reproduzível da TACO (V3, gerada por `tools/taco/generate_taco_migration.py`); `foods` intacta; o resto desta regra continua) o PostgreSQL atual é **temporário**, usado só para fornecer dados reais aos testes da calculadora; outro banco será adotado no futuro. Não investir nele (limpeza de colunas legadas, migrations, pipeline de importação, ajuste de busca). O que deve permanecer estável é o contrato: interface `FoodCatalog` e `FoodResponse` (id, nome, fonte, nutrientes por 100 g). Trocar de banco = nova implementação de `FoodCatalog`. Ponto a decidir quando o novo banco for escolhido: tipo do ID do alimento (hoje `Long`), que afeta `foodId` na composição.
 
 **Composição da dieta:** será uma feature grande, provavelmente um workspace/kanban com liberdade criativa para o profissional. A tela atual existe apenas para testar a calculadora; **o frontend inteiro será reformulado**. Não investir em organização do `nutrition-web` atual além do necessário para testar o backend.
 
@@ -62,7 +84,7 @@ O desenvolvimento é organizado por **épico → features**. Tela não é featur
 | 1 | Login de nutricionista (JWT) + cadastro de pacientes (básico + medidas atuais) | **Implementada, testes/build passando; validação integrada pendente por ausência de `JWT_SECRET`** — [especificação](docs/features/autenticacao-e-pacientes.md); ver seção 14 |
 | 2 | Paciente cadastrado no planejamento (escolher e editar o cadastro pela calculadora) | **Implementada (17/09), testes/build passando**; validação no navegador com sessão pendente (exige conta do usuário) — [especificação](docs/features/paciente-no-planejamento.md) |
 | — | Plano alimentar persistido vinculado ao paciente | Futura; depende de 1 e da decisão do modelo de nutrientes |
-| — | Modelo genérico de nutrientes (micronutrientes, metas com mínimo/máximo, valores ausentes) | Decisão pendente em documento de arquitetura; aplicar ao cálculo **antes** de persistir planos |
+| 3 | Modelo genérico de nutrientes + TACO completa + relatório de micronutrientes | **Implementada (18/09)**, testes/build passando, V2/V3 conferidas em PostgreSQL descartável; aplicação no banco real pendente de subir o JAR novo — [especificação](docs/features/nutrientes-e-relatorio.md). Metas de micronutrientes com mínimo/máximo continuam futuras; aplicar ao cálculo **antes** de persistir planos |
 
 Decisões do usuário (17/09): JWT; cadastro aberto; paciente com dados básicos + medidas atuais; PostgreSQL oficial para nutricionistas/pacientes com Flyway; **sem vínculo com a tela de planejamento nesta entrega** (endpoints da calculadora continuam públicos). Dados de saúde são sensíveis (LGPD): apenas pacientes fictícios até haver revisão de segurança e uso real autorizado.
 
@@ -212,8 +234,9 @@ Backend em `nutrition-api`: Java 25, Spring Boot 4.1.1, Maven, JAR; package `com
 | raiz `com.nutritionapp` | `DatabaseMigrationConfiguration` (Flyway explícito; ver seção 11) |
 | `energy` | `EnergyEstimator`, equações separadas DRI/FAO, request/response e controller |
 | `targets` | `TargetCalculator`, `MacroTargetCalculator`, `PerKgPrescriptionCalculator`, prescrição e macros opcionais |
-| `calculation` | `DietCalculator`, porções, totais e saldos; refeições temporárias com `MealRequest`/`CalculatedMeal`; alimentos do dia carregados em uma única chamada (`FoodCatalog.findAllById`) |
-| `food` | Entidade/repository e catálogo somente leitura |
+| `calculation` | `DietCalculator`, porções, totais e saldos; opções de refeição (só a Opção 1 conta); `DayNutrientCalculator` (fibra e micronutrientes do dia com referência); refeições temporárias com `MealRequest`/`CalculatedMeal`; alimentos do dia carregados em uma única chamada (`FoodCatalog.findAllById`) |
+| `food` | Entidade/repository e catálogo somente leitura; `FoodCatalog.nutrientDefinitions()` e `nutrientsOf(ids)` (18/09, uma consulta por dia) |
+| `nutrient` | Modelo genérico de nutrientes (18/09): entidades `Nutrient`/`FoodNutrient`, `NutrientStatus`, `NutrientCode` (códigos e unidades iguais à semente do V2), `NutrientReferences` (RDA/AI IOM/FNB do CSV versionado, validado ao iniciar) |
 | `shared` | `DecimalPrecision`, erro de cálculo com campo e `TextSearch` (busca por palavras sem acento/caixa, usada por alimentos e pacientes) |
 | `api` | Tradução de erros para ProblemDetail; `ApiFailure` (erro esperado com status e campo opcional, usado por auth e pacientes) |
 
@@ -272,9 +295,19 @@ Retorna `prescription` com diferença -1093.72, `macros` resolvidos e `targets` 
 
 `referenceEstimateKcal` é um valor resolvido transportado pelo cliente apenas para comparação. Não é uma estimativa persistida/auditada e não reexecuta sua fórmula. Referência sozinha nunca gera prescrição. Se houver futura persistência/auditoria, definir como vincular método, parâmetros, versão da equação e decisão profissional.
 
-Composição aceita `meals` obrigatório e `targets` diário opcional. `foods` antigo na raiz é rejeitado com 400. Cada refeição contém `name` (trim, obrigatório, não branco, até 60 caracteres) e `foods` obrigatório com IDs/quantidades. Até 20 refeições e 500 porções somadas no dia; nomes e alimentos repetidos são permitidos. Dia vazio e refeição vazia são válidos.
+Composição aceita `meals` obrigatório e `targets` diário opcional. `foods` antigo na raiz é rejeitado com 400. Cada refeição contém `name` (trim, obrigatório, não branco, até 60 caracteres) e **`options` (17/09) de 1 a 5, cada uma com `foods`** obrigatório com IDs/quantidades; `foods` direto na refeição é rejeitado (propriedade desconhecida). Até 20 refeições e 500 porções somadas no dia, **contando todas as opções**; nomes e alimentos repetidos são permitidos. Dia vazio, refeição com opção vazia e opção vazia são válidos.
 
-Resposta `meals` mantém a ordem do pedido, com `name`, porções calculadas e `totals` simples (`NutritionValues`), sem metas por refeição. `totals` na raiz compara todo o dia com as metas em `Balance`: `target`, `consumed`, `remaining`; target/remaining são null sem meta. Total diário usa todas as porções exatas, nunca totais arredondados de refeições. Soma de totais exibidos pode diferir em centésimos do total do dia. Erros usam `meals[1].name`, `meals[0].foods[2].quantityG`; limite total de porções usa `meals`. Exemplos em `nutrition-api/examples` usam fixtures sintéticas dos testes: não interpretar os IDs/valores como dados TACO.
+Resposta `meals` mantém a ordem do pedido, com `name`, `totals` simples (`NutritionValues`) **da Opção 1** e `options[]` (cada uma com porções calculadas e `totals`), sem metas por refeição. **Só a Opção 1 de cada refeição conta para o dia** (regra no backend, `DietCalculator`): `totals` na raiz compara o dia com as metas em `Balance`: `target`, `consumed`, `remaining`; target/remaining são null sem meta. Total diário usa as porções exatas das opções 1, nunca totais arredondados de refeições. Soma de totais exibidos pode diferir em centésimos do total do dia. Erros usam `meals[1].name`, `meals[0].options`, `meals[0].options[1].foods[2].quantityG`; limite total de porções usa `meals`. Exemplos em `nutrition-api/examples` usam fixtures sintéticas dos testes: não interpretar os IDs/valores como dados TACO.
+
+**Nutrientes do dia (18/09):**
+- **Pedido:** `referenceProfile` opcional `{sex: FEMALE|MALE, age}`.
+  - Sem perfil completo, com `UNSPECIFIED` ou idade < 19, não há referência e não há erro.
+  - Idade > 130 → 400 em `referenceProfile.age`.
+- **Resposta:** ganha `nutrients[]` (`code, name, unit, category, inReport, consumed, status COMPLETE|PARTIAL|NO_DATA, foodsWithoutData, reference{amount, type RDA|AI, percent}`) e `referenceSource{name, profile}`, que é `null` sem perfil coberto.
+- **Soma:** só as Opções 1; exata e arredondada a 2 casas no fim.
+  - Tr e NA contam 0; não analisado ou sem registro → `PARTIAL`; nenhum dado → `NO_DATA` com `consumed` nulo.
+  - `percent` com 1 casa. Fibra vem com `inReport: false`. Refeições não têm micros.
+- Detalhes em [nutrition-api/README.md](nutrition-api/README.md).
 
 Correção posterior em 16/09: bolso passou de estimativa para prescrição direta. Esta regra substitui expressamente a interpretação anterior de exigir o botão de aplicar também para bolso.
 
@@ -287,7 +320,7 @@ Correção posterior em 16/09: bolso passou de estimativa para prescrição dire
 - Paciente e configurações de estimativa/prescrição/macros ficam nos painéis laterais da interface atual. O resumo diário usa a análise com barras e donut (17/09). Essas decisões do trabalho com outro modelo foram preservadas.
 - Refeições começam vazias, com seis atalhos e nome livre. Cada refeição é uma linha retrátil em grid de colunas compartilhado: `[alça] horário | nome | itens/peso/ação | C | P | G | kcal | remover`. Recolhida mostra só o resumo; o botão "N itens" abre/fecha. Campos editáveis (horário, nome, peso) têm fundo branco e borda; valores só de leitura não têm borda. Renomear clicando no nome. Reordenar arrastando pela alça (`@angular/cdk`, decisão do usuário) ou com ↑/↓ na alça. Exclusão com alimentos pede confirmação; refeição vazia é excluída diretamente.
 - **Horário da refeição (16/09, decisão do usuário):** campo opcional HH:mm em 24 h (máscara própria, sem AM/PM), apenas na tela: **não é enviado à API** nem ordena as refeições.
-- **Resumo do dia (17/09, pedido do usuário a partir de uma referência visual; substitui os anéis concêntricos de 16/09):** barra de valor energético no topo ("consumido / meta kcal", restante e % da meta); abaixo, donut com a distribuição da energia dos macros (`macroEnergyShares` do backend) cercado por um anel dividido em um trecho por macro (tamanho = proporção das `energyKcal` de cada meta vinda do backend), com trilho claro que enche em cor forte conforme consumido / meta ("total carregado"; tom mais forte quando excede; neutro sem metas), legenda C/P/G em % (título com a % da meta); ao lado, uma barra por macro com ícone, "consumido / meta g" e restante. Barras param na meta; excedente pinta a barra em tom forte e mostra "Acima da meta em X". **Destaque (17/09, pedido do usuário):** passar o mouse ou dar foco (teclado, `tabindex`) em uma barra de macro — ou passar o mouse na fatia/arco correspondente — destaca aquele macro (fatia maior, demais clareadas) e abre uma descrição com consumido, % da energia dos macros, meta, % da meta e restante. A descrição **segue o cursor** (posição fixa, presa dentro da janela, sem capturar o mouse); com o teclado, sem cursor, fica ancorada sob o donut. Só macros; a linha de energia não entra no donut. Paleta em variáveis CSS; em 17/09 o usuário **voltou às cores de referência anteriores**: `--energy` verde, `--carb` azul, `--protein` vermelho, `--fat` amarelo, aplicada também às bolinhas das refeições e ao cartão de metas de macros. Coluna do resumo passou de 340 para 360 px. Fibra alimentar da referência ficou de fora: não existe no catálogo (modelo genérico de nutrientes). Botão "Definir composição como meta": ação explícita "Definir composição como meta" no resumo do dia. A meta energética recebe o total de kcal consumidas do dia; as metas de macros passam a `PERCENTAGE`, com percentuais proporcionais à energia de cada macro pela conversão 4/4/9 kcal/g (C×4, P×4, G×9 sobre a soma), 4 casas decimais e o resíduo do arredondamento somado à maior fatia para totalizar exatamente 100. A barra de energia fica em 100%; as de macros ficam próximas de 100% (não exatas), porque as kcal da tabela de alimentos diferem da soma 4/4/9 — limitação aceita pelo usuário. Se já houver meta, a substituição exige confirmação. Sem kcal ou sem macros consumidos, o backend rejeita com 400. Ao aplicar, quando essa meta volta do backend com restante zero, há uma animação comemorativa (barras e donut de 0 ao valor, kcal contando, donut tremendo e confetes), desativada com "reduzir movimento".
+- **Resumo do dia (17/09, pedido do usuário a partir de uma referência visual; substitui os anéis concêntricos de 16/09):** barra de valor energético no topo ("consumido / meta kcal", restante e % da meta); abaixo, donut com a distribuição da energia dos macros (`macroEnergyShares` do backend) cercado por um anel dividido em um trecho por macro (tamanho = proporção das `energyKcal` de cada meta vinda do backend), com trilho claro que enche em cor forte conforme consumido / meta ("total carregado"; tom mais forte quando excede; neutro sem metas), legenda C/P/G em % (título com a % da meta); ao lado, uma barra por macro com ícone, "consumido / meta g" e restante. Barras param na meta; excedente pinta a barra em tom forte e mostra "Acima da meta em X". **Destaque (17/09, pedido do usuário):** passar o mouse ou dar foco (teclado, `tabindex`) em uma barra de macro — ou passar o mouse na fatia/arco correspondente — destaca aquele macro (fatia maior, demais clareadas) e abre uma descrição com consumido, % da energia dos macros, meta, % da meta e restante. A descrição **segue o cursor** (posição fixa, presa dentro da janela, sem capturar o mouse); com o teclado, sem cursor, fica ancorada sob o donut. Só macros; a linha de energia não entra no donut. Paleta em variáveis CSS; em 17/09 o usuário **voltou às cores de referência anteriores**: `--energy` verde, `--carb` azul, `--protein` vermelho, `--fat` amarelo, aplicada também às bolinhas das refeições e ao cartão de metas de macros. Coluna do resumo passou de 340 para 360 px. Fibra alimentar entrou em 18/09 como barra própria, comparada com a referência (ver "Fibra e relatório de micronutrientes"). Botão "Definir composição como meta": ação explícita "Definir composição como meta" no resumo do dia. A meta energética recebe o total de kcal consumidas do dia; as metas de macros passam a `PERCENTAGE`, com percentuais proporcionais à energia de cada macro pela conversão 4/4/9 kcal/g (C×4, P×4, G×9 sobre a soma), 4 casas decimais e o resíduo do arredondamento somado à maior fatia para totalizar exatamente 100. A barra de energia fica em 100%; as de macros ficam próximas de 100% (não exatas), porque as kcal da tabela de alimentos diferem da soma 4/4/9 — limitação aceita pelo usuário. Se já houver meta, a substituição exige confirmação. Sem kcal ou sem macros consumidos, o backend rejeita com 400. Ao aplicar, quando essa meta volta do backend com restante zero, há uma animação comemorativa (barras e donut de 0 ao valor, kcal contando, donut tremendo e confetes), desativada com "reduzir movimento".
 - A busca de alimentos fica **dentro de cada refeição** (não há catálogo global): o botão "+ Adicionar alimento" do cartão abre a busca naquela refeição, com uma busca aberta por vez; criar uma refeição já abre sua busca. Nome de refeição nunca é enviado vazio: "Nova refeição" fica desabilitado sem nome, e ao apagar o nome de uma refeição o último nome válido continua sendo enviado e é restaurado ao sair do campo (correção de 16/09).
 - Quantidade recalcula ao confirmar (sair do campo/Enter); nome não recalcula; demais ações recalculam imediatamente.
 - **Porção pelo nutriente (17/09, pedido do usuário; diferencial do produto):** na linha do alimento, os chips de **C, P, G e kcal** são clicáveis quando o alimento tem aquele nutriente (valor por 100 g > 0); o chip vira campo com o valor atual, **Enter/sair** confirma e **Esc** cancela (vazio, ilegível ou igual ao atual cancelam sem requisição). O backend (`POST /api/portion-quantities`, público) calcula **peso = quantidade × 100 ÷ valor por 100 g, arredondado a 0,1 g HALF_UP** (decisão do usuário) e o peso é aplicado como uma edição de quantidade comum — a porção continua guardada em gramas. Alimento sem o nutriente → 400 em `nutrient`; peso < 0,1 g ou acima do limite de porção → 400 em `amount`; mensagens em português, exibidas no próprio chip (vermelho + título + leitor de tela) sem alterar a porção. O Angular não calcula o peso.
@@ -302,11 +335,47 @@ Correção posterior em 16/09: bolso passou de estimativa para prescrição dire
 - Busca: resultados recolhidos quando vazia, debounce 200 ms e cancelamento de consultas anteriores. Pesquisa por palavras AND, sem acento/ordem/caixa; `file frango` encontra `Frango, filé, à milanesa`. Não há fuzzy search ou sinônimos.
 - Quantidades: porção inicial de 100 g; edição recalcula ao confirmar. Estimativa/metas aguardam 300 ms após a confirmação (agrupa mudanças simultâneas). Nenhuma fórmula nutricional no Angular.
 - **Paciente cadastrado no planejamento (17/09, decisões do usuário):** o botão **Paciente** do topo abre um **menu suspenso compacto logo abaixo dele, só com busca e nomes** dos pacientes ativos do nutricionista (20 primeiros, debounce 250 ms, escolhido marcado, lista vazia oferece cadastrar); escolher, clicar fora ou Esc fecham. Sem sessão, o menu só oferece Entrar. Os **dados do paciente e o Objetivo** ficam no painel lateral **"Dados do paciente"** (o botão próprio no topo foi **removido a pedido do usuário em 17/09**; hoje o painel só abre pelo aviso "Abrir paciente" da estimativa, quando faltam dados — ponto de acesso a redefinir): com paciente escolhido os campos vêm do cadastro em **somente leitura**, com **Editar** (grava com `PUT /api/patients/{id}` o paciente inteiro, preservando telefone, e-mail, observações, nascimento e data das medidas, com `version`; 409 oferece recarregar) e **Desvincular** (volta aos dados livres mantendo os valores); sem paciente escolhido, o painel é o preenchimento temporário de antes. Escolher preenche nome, sexo, peso, altura, atividade DRI e **idade calculada pelo backend** (`ageYears`); objetivo é só da tela. **Idade < 19:** estimativa automática não é disparada e a tela explica; prescrição manual, macros e composição seguem normais. Nenhum plano é persistido.
+- **Fibra e relatório de micronutrientes (18/09, decisões do usuário; [spec](docs/features/nutrientes-e-relatorio.md)):**
+  - **Fibra:** barra no card de análise, depois de C/P/G, na cor `--fiber` (verde-água). Mostra consumido / referência, "% da referência (AI)" ou "Sem referência", e fica fora do donut.
+  - **Relatório "Micronutrientes":** abaixo do card, na mesma coluna, com recolher/expandir.
+    - Grupos Minerais, Vitaminas e Lipídios.
+    - Cada linha: consumido / referência, barra de 0 a 200% com linha tracejada na referência e "›" acima de 200%.
+    - `*` com "Sem dado em N alimentos" nos totais parciais; "—" sem dado.
+    - Rodapé com a fonte, o perfil e "a validar com o nutricionista".
+    - Sem perfil: "Informe sexo e idade do paciente para comparar com a referência."
+  - `referenceProfile` sai do sexo/idade do perfil do planejamento (digitado ou do paciente cadastrado); mudar sexo/idade recalcula.
+  - A coluna lateral (card + relatório) é `sticky` com rolagem própria a partir de 861 px.
+  - Nenhum cálculo no Angular além de posições de desenho. Com API antiga (sem `nutrients`), o relatório fica vazio sem erro.
+- **Opções de refeição (17/09, decisões do usuário; [spec](docs/features/opcoes-de-refeicao.md)):** no corpo da refeição aberta, canto superior esquerdo, abas **"Opção 1"**, **"Opção 2"**… e **"+"**, que cria uma **cópia da opção aberta** (mesmos alimentos e quantidades, porções novas; marcações de quantidade inválida copiadas) e a abre; até 5 (o "+" desabilita). **Só a Opção 1 conta** para meta, macros, saldos, donut, "Definir composição como meta" (e fibra/micronutrientes), regra aplicada pelo backend; a aba 1 tem o selo "conta na meta" quando há mais de uma. Ao abrir outra opção aparece a linha "Totais da Opção N" (C/P/G/kcal do backend) com "não conta na meta". **Tornar opção 1** move a opção aberta para o início (as outras seguem na ordem); **Remover opção** existe quando há mais de uma, pede confirmação se tiver alimentos (removendo a 1, avisa que a Opção 2 passa a contar) e as abas renumeram. A linha resumida (recolhida ou não) mostra sempre a Opção 1 — valores e "N itens" — com o selo "+N opções" junto ao nome. Buscar/adicionar, remover alimento, quantidade, porção pelo nutriente e marcação de porção inválida atuam na opção aberta. Excluir refeição pede confirmação se **qualquer** opção tiver alimentos. Nome e horário são da refeição. Acessível: `tablist`/`tab`/`tabpanel`, `aria-selected`, ←/→ trocam de aba. Opções não são salvas (como todo o planejamento). **Visual de abas de navegador (18/09, pedido do usuário):**
+- As abas ficam no topo da refeição aberta. A aba ativa se funde com a "folha" dos alimentos, com cantos côncavos, e há separadores entre as abas inativas.
+- Cada aba tem **×** para fechar, e o **+** fica logo depois da última.
+- Botão do meio do mouse ou Delete (com a aba em foco) também fecham.
+- Aba vazia fecha na hora. Aba com alimentos é aberta e pede confirmação ("Fechar a Opção N e seus alimentos?"). A única opção não tem ×.
+- **Arrastar uma aba reordena as opções** (Angular CDK). A que ficar em primeiro passa a contar na meta. "Tornar opção 1" continua como atalho à direita.
+- A Opção 1 tem um ponto verde ("conta na meta").
+- O botão "Remover opção" foi substituído pelo ×.
 - Recarregar a página descarta tudo; não há localStorage ou persistência do planejamento.
 
 ## 11. Banco e dados
 
-**Catálogo temporário** (ver seção 2): PostgreSQL 16 local, banco `nutrition_app`, tabela `public.foods`, 544 alimentos TACO conforme validação anterior. O catálogo não foi alterado nesta entrega.
+**Catálogo temporário** (ver seção 2): PostgreSQL 16 local, banco `nutrition_app`, tabela `public.foods`, 544 alimentos TACO conforme validação anterior. `foods` não é alterada.
+
+**Nutrientes (18/09):**
+- **V2** (`V2__create_nutrient_model.sql`) cria:
+  - `nutrients`: semente de 26 nutrientes, com ordem e `in_report`;
+  - `food_nutrients`: PK `(food_id, nutrient_code)`, FK para `foods` e `nutrients`, checks de status e de `amount` quando `VALUE`.
+- **V3** (`V3__import_taco_4ed_nutrients.sql`, ~538 KB) é **gerada** por `tools/taco/generate_taco_migration.py` (só biblioteca padrão; ver [tools/taco/README.md](tools/taco/README.md)).
+  - Casa por `source = 'TACO'` e `source_code::text` igual ao número do alimento.
+  - Estatísticas da planilha: 597 alimentos (423 com ácidos graxos) e 14.652 linhas. Status: VALUE 10.212, TRACE 1.939, NOT_APPLICABLE 881, NOT_ANALYZED 1.620.
+  - Nos 548 alimentos prontos do CSV de carga: 13.558 linhas. O banco real tem 544, então fica um pouco abaixo.
+  - Um valor ilegível na planilha (alimento 373, piridoxina `",0,02"`) foi gravado como NOT_ANALYZED, sem inventar valor.
+  - A legenda da planilha confirma Tr = traço e NA = não aplicável; `*` = "as análises estão sendo reavaliadas". Vazio foi tratado como não analisado (a legenda não o define): **a validar com o nutricionista**.
+- **Conferido em 18/09** num cluster PostgreSQL 16 **descartável** (initdb na pasta temporária, porta 55432, `foods` recriada do CSV de carga):
+  - Flyway V1–V3 aplicadas;
+  - Hibernate `validate` ok;
+  - cálculo real com nutrientes e referência;
+  - servidor removido depois.
+- **No banco real, V2/V3 ainda não rodaram.** Migrations aplicadas são imutáveis: correções de dados entram como V4+.
 
 **Nutricionistas/pacientes (17/09):** PostgreSQL oficial, V1 em `nutrition-api/src/main/resources/db/migration/V1__create_nutritionists_and_patients.sql`, criando somente as tabelas novas/índice. Flyway baseline-on-migrate=true, baseline-version=0; JPA validate preservado. Boot 4 tem módulo de autoconfiguração Flyway separado, não autorizado; por isso a configuração explícita usa `flyway-core`/plugin PostgreSQL e garante migrate antes de entityManagerFactory, preservando as demais dependências de inicialização. Chave JWT validada antes de migrar. Perfil test exclui DataSource/Flyway e configuração manual, com mocks de repository apenas em testes.
 
@@ -353,6 +422,23 @@ API padrão `http://127.0.0.1:8081`; frontend `http://127.0.0.1:4200`. Proxy loc
 No ambiente utilizado nesta entrega, o Java padrão do terminal pode não ser 25. O JDK 25 está em `C:/Program Files/Eclipse Adoptium/jdk-25.0.3.9-hotspot`. Foi utilizado Maven 3.9.12 em `%TEMP%/nutrition-build-tools/apache-maven-3.9.12` e repositório Maven temporário `%TEMP%/nutrition-maven-repository`. Esses caminhos são conveniências locais, não requisitos do projeto; podem deixar de existir. Não registrar credenciais encontradas na configuração da IDE.
 
 ## 14. Validação concluída e pendências
+
+### Opções de refeição e nutrientes — 18/09/2026 (execução autônoma de Claude, sem perguntas)
+
+**Testes e builds:**
+- **225 testes backend** (`mvn test`, sem PostgreSQL).
+- **94 frontend** (`npm test`), incluindo as abas no estilo de navegador.
+- `npm run build` passou.
+
+**Conferência real:**
+- PostgreSQL descartável com `foods` do CSV de carga: V1–V3 aplicadas, JPA `validate` ok.
+- A API nova respondeu com nutrientes TACO reais. Só a Opção 1 entrou no total do dia, e os status `PARTIAL`/`NO_DATA` apareceram corretos.
+- No navegador (dev server extra na porta 4201 apontando para essa API): abas de opções, "+" copiando, totais da Opção 2 "não conta na meta", selo "+1 opção", barra de fibra e relatório com linha tracejada e marcador de parcial.
+- A API do usuário (8081), o dev server (4200) e o banco real **não foram tocados**. Nenhum JAR gerado; nenhum comando Git.
+
+**Pendente:**
+- Parar a API, gerar o JAR e subir para aplicar V2/V3. Até isso, o planejamento em 4200 mostra erro de cálculo, porque o Angular já envia `options`.
+- Validar referências e tokens com o nutricionista.
 
 ### Entrega auth/pacientes — 17/09/2026
 

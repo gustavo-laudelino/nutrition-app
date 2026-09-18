@@ -116,28 +116,33 @@ e retorna:
 
 ## Composição por refeições
 
-`POST /api/diet-calculations` recebe `meals` obrigatório e `targets` diário opcional. O antigo `foods` na raiz é rejeitado com HTTP 400.
+`POST /api/diet-calculations` recebe `meals` obrigatório e `targets` diário opcional. O antigo `foods` na raiz é rejeitado com HTTP 400. Desde 17/09 cada refeição tem **opções** (variações de cardápio): `foods` na raiz da refeição também é rejeitado.
 
 ```json
 {
   "targets": {"energyKcal": 2000, "proteinG": 150},
   "meals": [
-    {"name": "Almoço", "foods": [{"foodId": 1, "quantityG": 150}]},
-    {"name": "Ceia", "foods": []}
+    {"name": "Almoço", "options": [
+      {"foods": [{"foodId": 1, "quantityG": 150}]},
+      {"foods": [{"foodId": 2, "quantityG": 120}]}
+    ]},
+    {"name": "Ceia", "options": [{"foods": []}]}
   ]
 }
 ```
 
-- Até 20 refeições e 500 porções somadas no dia. Dia vazio (`meals: []`) e refeição vazia são válidos.
+- **Opções:** `options` obrigatório, de 1 a 5 por refeição ("Informe ao menos uma opção." / "Informe no máximo 5 opções por refeição.", campo `meals[i].options`). **Só a primeira opção de cada refeição conta para o dia**: `totals`, `macroEnergyShares` (e os nutrientes do dia) usam apenas as opções 1. As demais opções são calculadas e devolvidas com seus próprios `foods` e `totals`, para comparação na tela. Opção vazia é válida.
+
+- Até 20 refeições e 500 porções somadas no dia (**todas as opções** entram na contagem). Dia vazio (`meals: []`) e refeição vazia são válidos.
 - Nome obrigatório, não branco após trim, até 60 caracteres; nomes repetidos são permitidos. A resposta devolve o nome sem espaços nas extremidades.
-- Cada `foods` é obrigatório e contém IDs positivos e quantidades positivas em gramas, com até três casas decimais. Alimentos repetidos são contabilizados individualmente.
-- Resposta: `meals[]` na ordem do pedido, cada item com `name`, `foods` calculados e `totals` simples (`energyKcal`, `carbohydrateG`, `proteinG`, `fatG`). Não há meta ou saldo por refeição.
+- Cada `options[j].foods` é obrigatório e contém IDs positivos e quantidades positivas em gramas, com até três casas decimais. Alimentos repetidos são contabilizados individualmente.
+- Resposta: `meals[]` na ordem do pedido, cada item com `name`, `totals` simples (`energyKcal`, `carbohydrateG`, `proteinG`, `fatG`) **da Opção 1** e `options[]` na ordem do pedido, cada uma com `foods` calculados e `totals`. Não há meta ou saldo por refeição.
 - `totals` na raiz contém os saldos diários `{target, consumed, remaining}`. Sem meta, target/remaining são null. Excedentes têm saldo negativo.
 - `macroEnergyShares` na raiz: `{carbohydratePercent, proteinPercent, fatPercent}` com a distribuição da energia dos macros do dia por 4/4/9 kcal/g, calculada sobre os gramas consumidos arredondados, 4 casas e soma exata de 100 (mesma regra de `from-composition`). `null` quando não há macros. Descreve os macros, não as kcal da tabela.
 - Quantidade de porção: obrigatória, maior que zero, até 7 inteiros e 3 decimais; mensagens em português (ex.: "Informe uma quantidade maior que zero.").
-- Uma única chamada a `FoodCatalog.findAllById` carrega todos os IDs do dia. Alimento inexistente em qualquer refeição retorna 404.
-- Valores exatos das porções são somados antes de arredondar. Cada refeição é arredondada separadamente; o dia usa a soma exata de todas as porções, nunca os totais de refeições já arredondados. A soma dos totais exibidos por refeição pode diferir do total diário em centésimos.
-- Erros 400 usam caminhos como `meals[1].name`, `meals[0].foods[2].quantityG` ou `meals` para o limite diário de porções.
+- Uma única chamada a `FoodCatalog.findAllById` carrega todos os IDs do dia, de todas as opções. Alimento inexistente em qualquer refeição retorna 404.
+- Valores exatos das porções são somados antes de arredondar. Cada refeição é arredondada separadamente; o dia usa a soma exata de todas as porções das opções 1, nunca os totais de refeições já arredondados. A soma dos totais exibidos por refeição pode diferir do total diário em centésimos.
+- Erros 400 usam caminhos como `meals[1].name`, `meals[0].options[1].foods[2].quantityG`, `meals[0].options` ou `meals` para o limite diário de porções.
 
 Os arquivos `examples/diet-calculation-request.json` e `examples/diet-calculation-response.json` trazem o contrato completo com **fixtures sintéticas da suíte**, não dados TACO. Para uso real, consulte IDs e valores da base via `/api/foods`. Não há persistência, entidades ou tabelas de refeições.
 
@@ -145,9 +150,46 @@ Os arquivos `examples/diet-calculation-request.json` e `examples/diet-calculatio
 
 `BigDecimal` em toda aritmética; HALF_UP e duas casas na saída. FAO multiplica TMB exata pelo PAL antes de arredondar; composição soma porções exatas antes de arredondar. Saldo usa meta apresentada menos consumo apresentado. Kcal da base são preservadas, sem reconstrução por macros.
 
-Campos desconhecidos, enums/tipos inválidos, combinações incompatíveis e entradas fora do escopo geram HTTP 400 (`application/problem+json`). Todo 400 inclui `errors[{field,message}]`, também para parâmetros de URL e JSON ilegível (ex.: `meals[0].foods[0].foodId`, propriedade desconhecida `targetKcal`); a lista fica vazia apenas quando não há campo identificável, como em JSON malformado. Alimento inexistente retorna 404. Não há compatibilidade artificial com o antigo objeto `energy` de `/api/target-calculations`; ele agora é rejeitado.
+Campos desconhecidos, enums/tipos inválidos, combinações incompatíveis e entradas fora do escopo geram HTTP 400 (`application/problem+json`). Todo 400 inclui `errors[{field,message}]`, também para parâmetros de URL e JSON ilegível (ex.: `meals[0].options[0].foods[0].foodId`, propriedade desconhecida `targetKcal`); a lista fica vazia apenas quando não há campo identificável, como em JSON malformado. Alimento inexistente retorna 404. Não há compatibilidade artificial com o antigo objeto `energy` de `/api/target-calculations`; ele agora é rejeitado.
 
 Metas e quantidades têm limites técnicos de dígitos. Peso/altura positivos; idade inteira de 19 a 130 quando informada; quantidades positivas até 3 casas; fatores e macros até 4 casas (PAL FAO até 2).
+
+## Nutrientes do dia e referências (18/09)
+
+Modelo genérico de nutrientes ([especificação](../docs/features/nutrientes-e-relatorio.md)). Pacote `nutrient`.
+
+**Esquema:**
+- `V2__create_nutrient_model.sql` cria `nutrients` (catálogo: código, nome, unidade, categoria, ordem, `in_report`) com a semente de 26 nutrientes.
+- Também cria `food_nutrients` (valor por 100 g por alimento, `status` VALUE/TRACE/NOT_APPLICABLE/NOT_ANALYZED, `source`; `amount` nulo só quando não analisado).
+- `V3__import_taco_4ed_nutrients.sql` é **gerado** por [`tools/taco/generate_taco_migration.py`](../tools/taco/README.md) a partir da TACO 4ª edição. `foods` não é alterada; energia e macros continuam nela.
+
+**Catálogo:** `FoodCatalog` ganhou dois métodos:
+- `nutrientDefinitions()`: catálogo em ordem de exibição;
+- `nutrientsOf(ids)`: uma consulta para todos os alimentos do dia.
+
+**Referências:**
+- `nutrient-references/iom-fnb-dri-adults.csv` contém as RDA/AI do Food and Nutrition Board / IOM por sexo e faixa etária, adultos 19+, sem UL. Sódio e potássio usam a atualização de 2019. **A validar com o nutricionista.**
+- `NutrientReferences` carrega o arquivo ao iniciar. A inicialização falha com código desconhecido (`NutrientCode`, igual à semente do V2), unidade diferente, faixa inválida ou cabeçalho errado.
+- Niacina: a RDA é em mg NE, e a TACO dá mg (comparação aproximada).
+
+**Contrato `POST /api/diet-calculations`:**
+- `referenceProfile` **opcional**: `{"sex":"FEMALE"|"MALE","age":19..130}`.
+  - Ausente, incompleto, `UNSPECIFIED` ou idade < 19 → sem referência, sem erro.
+  - Idade > 130 → 400 em `referenceProfile.age` ("Informe uma idade de até 130 anos.").
+  - Sexo ou tipo inválido → 400 no campo.
+- Resposta, na raiz:
+  - `nutrients[]` com `{code, name, unit, category, inReport, consumed, status, foodsWithoutData, reference}`, na ordem do catálogo.
+  - `reference = {amount, type: RDA|AI, percent}`.
+  - `referenceSource = {name, profile}` (ex.: "Mulher, 19–30 anos"), ou `null` sem perfil coberto.
+- Soma por porção **das Opções 1**: valor por 100 g × quantidade ÷ 100. Sem arredondar antes; 2 casas só no total.
+- `TRACE` e `NOT_APPLICABLE` contam 0. Porção de alimento sem valor (`NOT_ANALYZED` ou sem registro) deixa o total `PARTIAL`, com `foodsWithoutData` = alimentos distintos sem dado.
+- Nenhuma porção com dado → `NO_DATA` e `consumed: null`. Dia sem porções → `nutrients: []`.
+- `percent = consumed ÷ referência × 100`, 1 casa, só com `consumed`.
+- Fibra vem com `inReport: false` (vai no card de análise). Refeições não trazem micronutrientes.
+
+**Validação local (18/09):** cluster PostgreSQL 16 **descartável** (fora do banco do usuário) com `foods` recriada a partir do CSV de carga (548 alimentos):
+- Flyway aplicou V1–V3 (13.558 linhas em `food_nutrients`), o Hibernate `validate` passou e a API respondeu com dados reais.
+- No banco real a V2/V3 só rodam ao subir o JAR novo.
 
 ## Testes
 
@@ -204,3 +246,9 @@ Spring Boot 4 modulariza a autoconfiguração Flyway; como o módulo/starter adi
 - Alimento inexistente → 404. Campos inválidos → 400 por campo, em português.
 
 Exemplo (catálogo sintético dos testes, 28 g de carboidrato por 100 g): `{"foodId":1,"nutrient":"CARBOHYDRATE","amount":40}` → `quantityG: 142.9`.
+
+**Opções de refeição e nutrientes (18/09):** **225 testes** passando em `mvn test`, sem PostgreSQL:
+- opções (só a 1 conta, limites 1–5, 500 porções somando opções, caminhos de erro, `foods` na refeição rejeitado);
+- referências (limites 30/31, 50/51, 70/71, arquivo inválido);
+- soma de nutrientes (precisão, TRACE/NA como 0, parcial, sem dado, só a Opção 1, uma consulta);
+- contrato com `referenceProfile` e exemplo STRICT.

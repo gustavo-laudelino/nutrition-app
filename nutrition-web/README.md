@@ -23,9 +23,33 @@ Abra http://127.0.0.1:4200. `proxy.conf.cjs` encaminha `/api/**` para http://127
 6. **Total do dia:** barra de valor energético ("consumido / meta", restante e %), donut com a distribuição da energia dos macros (`macroEnergyShares`, calculado pelo backend) cercado por um anel com um trecho por meta de macro que enche conforme consumido / meta, e uma barra por macro (C, P, G) com "consumido / meta". Barras param na meta; excedente fica em tom forte com "Acima da meta em X". Passar o mouse ou dar foco em um macro (barra, fatia ou arco) destaca esse macro no donut, clareia os demais e mostra uma descrição com consumido, % da energia dos macros, meta e restante; com o mouse ela segue o cursor, e com o teclado fica ancorada sob o donut. Cores em variáveis CSS: `--energy` verde, `--carb` azul, `--protein` vermelho, `--fat` amarelo (paleta de referência original, restaurada em 17/09). Os valores vêm exclusivamente dos totais diários retornados pelo backend. Cada cartão mostra os quatro totais da refeição, sem metas próprias. A soma de valores exibidos por refeição pode diferir em centésimos do total diário, pois o backend arredonda apenas após somar as porções exatas.
 7. **Definir composição como meta:** botão no resumo do dia chama `POST /api/target-calculations/from-composition` e aplica a meta energética (= kcal consumidas) e os percentuais de macros equivalentes. Se já houver meta, pede confirmação mostrando a atual e a nova. Quando essa meta volta do backend com restante zero, roda uma animação (barras e donut de 0 ao valor, tremor e confetes, sem biblioteca), desativada com "reduzir movimento". As barras de macros ficam próximas de 100%, não exatas (kcal da tabela ≠ 4/4/9).
 
+**Opções de refeição:** no corpo da refeição aberta, abas "Opção 1", "Opção 2"… e "+" (cópia da opção aberta, até 5). Só a Opção 1 conta para metas, saldos e resumo do dia (regra do backend); as outras mostram "Totais da Opção N · não conta na meta". "Tornar opção 1" move a opção aberta para o início; "Remover opção" pede confirmação se tiver alimentos e renumera. A linha resumida mostra sempre a Opção 1, com "+N opções" junto ao nome. Adicionar, remover e editar alimentos atuam na opção aberta. Abas acessíveis (←/→).
+
+**Visual de aba de navegador (18/09):**
+- A aba ativa se funde com a folha da refeição.
+- **×** em cada aba; botão do meio do mouse ou Delete também fecham. Aba com alimentos pede confirmação.
+- Arrastar uma aba reordena as opções; a primeira conta na meta.
+
+**Fibra e micronutrientes:** o card de análise ganhou a barra **Fibra alimentar** (cor `--fiber`, verde-água):
+- mostra "consumido / referência g" e "% da referência (AI)", ou "Sem referência";
+- fica fora do donut.
+
+Abaixo do card, na mesma coluna lateral, o relatório **Micronutrientes**:
+- recolher/expandir; começa expandido;
+- grupos Minerais, Vitaminas e Lipídios, na ordem do backend;
+- cada linha tem nome, consumido / referência + unidade e uma barra de 0 a 200% da referência, com a linha tracejada da referência no meio e "›" acima de 200%;
+- `*` marca total parcial ("Sem dado em N alimentos"), e "—" indica sem dado;
+- rodapé com a fonte e o perfil, ou "Informe sexo e idade do paciente…".
+
+Regras:
+- O pedido envia `referenceProfile` só com sexo ≠ não informado e idade preenchida. Mudar sexo ou idade recalcula.
+- Em telas ≥ 861 px a coluna lateral é `sticky` com rolagem própria.
+- Sem `nutrients` (API antiga), o relatório fica vazio sem erro.
+- Refeições não mostram micronutrientes, e o Angular não calcula nada nutricional (só posições de desenho).
+
 **Porção pelo nutriente:** na linha do alimento, clicar em C, P, G ou kcal transforma o chip num campo; Enter/sair confirma e Esc cancela. O peso vem de `POST /api/portion-quantities` (arredondado a 0,1 g pelo backend) e é aplicado como edição de quantidade. Só aparece para nutrientes que o alimento tem; erros ficam marcados no chip sem mudar a porção.
 
-Só a busca consulta a cada letra (200 ms de debounce). Quantidade recalcula ao confirmar; nome não recalcula; criar, adicionar/remover, reordenar e excluir recalculam imediatamente. Cada requisição cancela a anterior, e os últimos totais permanecem na tela até a resposta (retirados só em erro). O payload é `{targets, meals:[{name, foods:[{foodId, quantityG}]}]}`; a resposta mantém a ordem das refeições. Não há armazenamento local nem metas por refeição; o horário não entra no payload.
+Só a busca consulta a cada letra (200 ms de debounce). Quantidade recalcula ao confirmar; nome não recalcula; criar, adicionar/remover, reordenar e excluir recalculam imediatamente. Cada requisição cancela a anterior, e os últimos totais permanecem na tela até a resposta (retirados só em erro). O payload é `{targets, meals:[{name, options:[{foods:[{foodId, quantityG}]}]}]}` (todas as opções, na ordem das abas); a resposta mantém a ordem das refeições e das opções, e o backend calcula o dia **só com a Opção 1** de cada refeição. Não há armazenamento local nem metas por refeição; o horário não entra no payload.
 
 Estimativas/metas são atualizadas 300 ms após confirmar o campo (sair, Enter ou Concluir), ou por botão. Estados, erros e cancelamento das requisições são separados. Uma estimativa inválida não impede prescrição manual e alimentos. Valores anteriores permanecem visíveis enquanto recalculam; são retirados apenas em erro ou quando os dados ficam incompletos.
 
@@ -75,3 +99,5 @@ Build de produção exige fallback das rotas Angular para `index.html`, além do
 **61 testes passando** (44 de planejamento intactos + 17 de auth/pacientes); `npm run build` passou. Navegador: login, cadastro e sua navegação conferidos visualmente; `/pacientes` sem sessão redireciona a `/login`; `/planejamento` abre sem autenticação. **Fluxos autenticados no navegador/PostgreSQL pendentes por ausência de `JWT_SECRET`**, conforme HANDOFF. API nova está parada e o planejamento mostra erro de serviço enquanto ela não for iniciada com o segredo; não confundir com teste integrado concluído.
 
 `npm audit` apontou dois alertas em dependências de desenvolvimento já existentes: `vitest` 4.0.18 (crítico) e `@vitest/mocker` (moderado), com correção indicada em Vitest 4.1.11. Nenhuma atualização automática foi aplicada, preservando a lista e versões autorizadas; revisão dessa ferramenta de testes fica registrada como pendência separada.
+
+**Opções de refeição e nutrientes (18/09):** **94 testes** passando (`npm test`), incluindo 10 de opções (abas de navegador) e 4 de fibra/relatório/perfil de referência; `npm run build` passou. Conferido no navegador com a API nova sobre um PostgreSQL descartável com dados TACO reais (abas de opções, totais da Opção 2, fibra e relatório).
