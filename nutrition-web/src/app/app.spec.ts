@@ -595,23 +595,22 @@ describe('Estimate, professional prescription and independent composition', () =
   function mealWithTwoOptions() {
     createMeal();app.addFood(food);http.expectOne('/api/diet-calculations').flush(mealResponse);
     app.addOption(app.meals()[0].key);http.expectOne('/api/diet-calculations').flush(response);
-    const [first,second]=app.meals()[0].options;
-    app.removeFood(app.meals()[0].key,second.foods[0].key);http.expectOne('/api/diet-calculations').flush(response);
+    const [first]=app.meals()[0].options;
     app.openFoodSearch(app.meals()[0].key);app.addFood({...food,id:7});
     http.expectOne('/api/diet-calculations').flush(twoOptionResponse());
     return {first,second:app.meals()[0].options[1]};
   }
-  it('starts every meal with one option and "+" copies the open option into a new one, up to five',()=>{
+  it('starts every meal with one option and "+" opens a new empty option, up to five',()=>{
     createMeal();app.addFood(food);http.expectOne('/api/diet-calculations').flush(mealResponse);
     const meal=app.meals()[0];expect(meal.options).toHaveLength(1);expect(meal.activeOptionKey).toBe(meal.options[0].key);
     app.changeQuantity(meal.key,meal.options[0].foods[0].key,150);http.expectOne('/api/diet-calculations').flush(mealResponse);
     app.addOption(meal.key);
     const request=http.expectOne('/api/diet-calculations');
-    expect(request.request.body.meals[0].options).toEqual([{foods:[{foodId:42,quantityG:150}]},{foods:[{foodId:42,quantityG:150}]}]);
+    expect(request.request.body.meals[0].options).toEqual([{foods:[{foodId:42,quantityG:150}]},{foods:[]}]);
     request.flush(response);
-    const [first,copy]=app.meals()[0].options;
-    expect(app.meals()[0].activeOptionKey).toBe(copy.key);
-    expect(copy.foods[0].key).not.toBe(first.foods[0].key);expect(copy.foods[0].quantityG).toBe(150);
+    const [first,added]=app.meals()[0].options;
+    expect(app.meals()[0].activeOptionKey).toBe(added.key);
+    expect(added.foods).toEqual([]);expect(first.foods[0].quantityG).toBe(150);
     for (let i=0;i<3;i++) { app.addOption(meal.key);flushComposition(); }
     expect(app.meals()[0].options).toHaveLength(5);
     app.addOption(meal.key);http.expectNone('/api/diet-calculations');expect(app.meals()[0].options).toHaveLength(5);
@@ -640,7 +639,7 @@ describe('Estimate, professional prescription and independent composition', () =
     expect(panel.querySelector('.meal-count')!.textContent).toContain('1 item');
     expect(panel.querySelector('.meal-options-count')!.textContent!.trim()).toBe('+1 opção');
     expect(panel.querySelector('.meal-summary')!.textContent).toContain('123 kcal');
-    expect(panel.querySelector('.option-totals')!.textContent!.replace(/\s+/g,' ')).toContain('Totais da Opção 2');
+    expect(panel.querySelector('.option-totals')!.textContent!.replace(/\s+/g,' ')).toContain('Totais de Opção 2');
     expect(panel.querySelector('.option-totals')!.textContent).toContain('300 kcal');
     expect(panel.querySelector('.option-totals')!.textContent).toContain('não conta na meta');
     expect(panel.querySelector('.meal-body .food-row')!.textContent).toContain('300 kcal');
@@ -648,17 +647,17 @@ describe('Estimate, professional prescription and independent composition', () =
     expect(panel.querySelector('.option-totals')).toBeNull();
     expect(panel.querySelector('.meal-body .food-row')!.textContent).toContain('100 kcal');
   });
-  it('"Tornar opção 1" moves the option to the first position and recalculates',()=>{
+  it('"Definir como principal" moves the option to the first position and recalculates',()=>{
     const {first,second}=mealWithTwoOptions();
     fixture.detectChanges();
-    const action=Array.from(fixture.nativeElement.querySelectorAll('.option-actions button') as NodeListOf<HTMLButtonElement>).find(button=>button.textContent!.includes('Tornar opção 1'))!;
+    const action=Array.from(fixture.nativeElement.querySelectorAll('.option-actions button') as NodeListOf<HTMLButtonElement>).find(button=>button.textContent!.includes('Definir como principal'))!;
     action.click();
     expect(app.meals()[0].options.map(option=>option.key)).toEqual([second.key,first.key]);
     expect(app.meals()[0].activeOptionKey).toBe(second.key);
     expect(app.result()!.meals[0].options[0].totals.energyKcal).toBe(300);
     expect(http.expectOne('/api/diet-calculations').request.body.meals[0].options).toEqual([{foods:[{foodId:7,quantityG:100}]},{foods:[{foodId:42,quantityG:100}]}]);
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.option-actions').textContent).not.toContain('Tornar opção 1');
+    expect(fixture.nativeElement.querySelector('.option-actions').textContent).not.toContain('Definir como principal');
   });
   it('removes an option with foods after confirmation, renumbers and never removes the only option',()=>{
     const {first,second}=mealWithTwoOptions();
@@ -666,7 +665,7 @@ describe('Estimate, professional prescription and independent composition', () =
     app.selectOption(mealKey,first.key);
     app.requestRemoveOption(mealKey,first.key);http.expectNone('/api/diet-calculations');
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.meal-body .meal-confirmation').textContent).toContain('A Opção 2 passará a contar na meta.');
+    expect(fixture.nativeElement.querySelector('.meal-body .meal-confirmation').textContent).toContain('Opção 2 passará a contar na meta.');
     app.removeOption(mealKey,first.key);
     expect(app.meals()[0].options.map(option=>option.key)).toEqual([second.key]);
     expect(app.meals()[0].activeOptionKey).toBe(second.key);
@@ -690,19 +689,19 @@ describe('Estimate, professional prescription and independent composition', () =
     createMeal();app.addFood(food);http.expectOne('/api/diet-calculations').flush(mealResponse);
     const mealKey=app.meals()[0].key;
     app.addOption(mealKey);flushComposition();
-    const copy=app.meals()[0].options[1];
-    app.removeFood(mealKey,copy.foods[0].key);flushComposition();
+    const empty=app.meals()[0].options[1];
     app.selectOption(mealKey,app.meals()[0].options[0].key);app.addOption(mealKey);flushComposition();
+    app.openFoodSearch(mealKey);app.addFood(food);flushComposition();
     app.selectOption(mealKey,app.meals()[0].options[0].key);fixture.detectChanges();
     const tabs=()=>Array.from(fixture.nativeElement.querySelectorAll('[role="tab"]') as NodeListOf<HTMLElement>);
     // × on the empty second tab closes it without leaving the open tab.
     (tabs()[1].querySelector('.option-close') as HTMLButtonElement).click();
-    expect(app.meals()[0].options.map(option=>option.key)).not.toContain(copy.key);
+    expect(app.meals()[0].options.map(option=>option.key)).not.toContain(empty.key);
     expect(app.meals()[0].activeOptionKey).toBe(app.meals()[0].options[0].key);flushComposition();fixture.detectChanges();
     // Middle click on a tab with foods opens it and asks before closing.
     tabs()[1].dispatchEvent(new MouseEvent('auxclick',{button:1,bubbles:true}));fixture.detectChanges();
     expect(app.meals()[0].activeOptionKey).toBe(app.meals()[0].options[1].key);
-    expect(fixture.nativeElement.querySelector('.meal-body .meal-confirmation').textContent).toContain('Fechar a Opção 2 e seus alimentos?');
+    expect(fixture.nativeElement.querySelector('.meal-body .meal-confirmation').textContent).toContain('Fechar Opção 2 e seus alimentos?');
     http.expectNone('/api/diet-calculations');
     (Array.from(fixture.nativeElement.querySelectorAll('.meal-body .meal-confirmation button') as NodeListOf<HTMLButtonElement>).find(button=>button.textContent!.includes('Fechar opção'))!).click();
     expect(app.meals()[0].options).toHaveLength(1);flushComposition();
@@ -713,6 +712,53 @@ describe('Estimate, professional prescription and independent composition', () =
     expect(app.meals()[0].options.map(option=>option.key)).toEqual([second.key,first.key]);
     expect(http.expectOne('/api/diet-calculations').request.body.meals[0].options).toEqual([{foods:[{foodId:7,quantityG:100}]},{foods:[{foodId:42,quantityG:100}]}]);
     app.dropOption(app.meals()[0].key,{previousIndex:0,currentIndex:0} as never);http.expectNone('/api/diet-calculations');
+  });
+  it('renames a tab by double click: Enter saves on screen only, Esc cancels, blank restores the position name',()=>{
+    const {first,second}=mealWithTwoOptions();
+    const mealKey=app.meals()[0].key;
+    fixture.detectChanges();
+    const tabs=()=>Array.from(fixture.nativeElement.querySelectorAll('[role="tab"]') as NodeListOf<HTMLElement>);
+    const nameInput=()=>fixture.nativeElement.querySelector('.option-name-input') as HTMLInputElement;
+    tabs()[1].dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));fixture.detectChanges();
+    expect(nameInput().value).toBe('Opção 2');
+    nameInput().value='  Sem glúten  ';nameInput().dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'}));fixture.detectChanges();
+    expect(app.meals()[0].options[1].name).toBe('Sem glúten');
+    expect(tabs()[1].querySelector('.option-label')!.textContent!.trim()).toBe('Sem glúten');
+    expect(fixture.nativeElement.querySelector('.option-totals').textContent).toContain('Totais de Sem glúten');
+    http.expectNone('/api/diet-calculations');
+    // Moving keeps the name; the unnamed option follows its new position.
+    app.makeFirstOption(mealKey,second.key);
+    expect(http.expectOne('/api/diet-calculations').request.body.meals[0].options).toEqual([{foods:[{foodId:7,quantityG:100}]},{foods:[{foodId:42,quantityG:100}]}]);
+    fixture.detectChanges();
+    expect(tabs().map(tab=>tab.querySelector('.option-label')!.textContent!.replace(/\s+/g,' ').trim())).toEqual(['Sem glúten, conta na meta','Opção 2']);
+    // Esc cancels; blank clears the name.
+    app.startRenameOption(mealKey,first.key);fixture.detectChanges();
+    nameInput().value='Outro';nameInput().dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));fixture.detectChanges();
+    expect(app.meals()[0].options[1].name).toBe('');expect(nameInput()).toBeNull();
+    app.startRenameOption(mealKey,second.key);fixture.detectChanges();
+    nameInput().value='   ';nameInput().dispatchEvent(new Event('blur'));fixture.detectChanges();
+    expect(tabs()[0].querySelector('.option-label')!.textContent!.replace(/\s+/g,' ').trim()).toBe('Opção 1, conta na meta');
+  });
+  it('right click opens the tab menu: Renomear, Definir como principal and Fechar opção',()=>{
+    const {first,second}=mealWithTwoOptions();
+    fixture.detectChanges();
+    const tabs=()=>Array.from(fixture.nativeElement.querySelectorAll('[role="tab"]') as NodeListOf<HTMLElement>);
+    const items=()=>Array.from(fixture.nativeElement.querySelectorAll('.option-menu [role="menuitem"]') as NodeListOf<HTMLButtonElement>);
+    const event=new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:50,clientY:40});
+    tabs()[0].dispatchEvent(event);fixture.detectChanges();
+    expect(event.defaultPrevented).toBe(true);
+    expect(app.meals()[0].activeOptionKey).toBe(first.key);
+    expect(items().map(item=>item.textContent!.trim())).toEqual(['Renomear','Fechar opção']);
+    (fixture.nativeElement.querySelector('.option-menu') as HTMLElement).dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.option-menu')).toBeNull();
+    tabs()[1].dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:80,clientY:40}));fixture.detectChanges();
+    expect(items().map(item=>item.textContent!.trim())).toEqual(['Renomear','Definir como principal','Fechar opção']);
+    items()[1].click();
+    expect(app.meals()[0].options.map(option=>option.key)).toEqual([second.key,first.key]);
+    expect(app.optionMenu()).toBeNull();flushComposition();fixture.detectChanges();
+    tabs()[1].dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:80,clientY:40}));fixture.detectChanges();
+    items()[0].click();fixture.detectChanges();
+    expect(app.editingOptionKey()).toBe(first.key);expect(fixture.nativeElement.querySelector('.option-name-input')).not.toBeNull();
   });
   it('arrow keys move between option tabs',()=>{
     mealWithTwoOptions();fixture.detectChanges();

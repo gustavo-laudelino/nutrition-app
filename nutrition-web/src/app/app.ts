@@ -15,13 +15,15 @@ import { Patient, PatientsApi } from './patients/patients-api';
 // time is a screen-only planning aid ("HH:mm" or empty); it is not sent to the calculation API.
 // options: 1 to 5 menu alternatives; only the first counts toward the day. activeOptionKey is the one on screen.
 interface Meal { key: number; time: string; name: string; savedName: string; options: MealOption[]; activeOptionKey: number }
-interface MealOption { key: number; foods: Portion[] }
+// name is only on screen (not sent to the API); blank shows the position, "Opção N".
+interface MealOption { key: number; name: string; foods: Portion[] }
 interface Portion { key: number; food: Food; quantityG: number | null }
 type CalculatedMeal = CalculationResponse['meals'][number];
 type CalculatedOption = Omit<CalculatedMeal['options'][number], 'foods'> & { foods: (CalculatedFood | null)[] };
 // Server result aligned with the meals on screen: a portion left out of the request is null.
 type DayResult = Omit<CalculationResponse, 'meals'> & { meals: (Omit<CalculatedMeal, 'options'> & { options: CalculatedOption[] })[] };
 const MAX_MEAL_OPTIONS = 5;
+const MAX_OPTION_NAME = 30;
 const PORTION_QUANTITY_FIELD = /^meals\[(\d+)\]\.options\[(\d+)\]\.foods\[(\d+)\]\.quantityG$/;
 interface ConfettiPiece { id: number; x: number; y: number; rotate: number; delay: number; color: string; round: boolean }
 /** "7" → 07:00, "730" → 07:30, "0730" → 07:30; out of 00:00–23:59 → empty. */
@@ -132,6 +134,10 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly pendingMealRemoval = signal<number | null>(null);
   readonly pendingOptionRemoval = signal<{ mealKey: number; optionKey: number } | null>(null);
   readonly maxMealOptions = MAX_MEAL_OPTIONS;
+  readonly maxOptionName = MAX_OPTION_NAME;
+  readonly editingOptionKey = signal<number | null>(null);
+  // Right-click menu of an option tab, at the cursor (or under the tab when opened from the keyboard).
+  readonly optionMenu = signal<{ mealKey: number; optionKey: number; x: number; y: number } | null>(null);
   readonly mealShortcuts = ['Café da manhã', 'Lanche da manhã', 'Almoço', 'Lanche da tarde', 'Jantar', 'Ceia'];
   newMealName = '';
   readonly result = signal<DayResult | null>(null);
@@ -572,7 +578,7 @@ export class AppComponent implements OnInit, OnDestroy {
     if (!trimmed) return;
     const key = this.nextKey++;
     const optionKey = this.nextKey++;
-    this.meals.update(meals => [...meals, { key, time: '', name: trimmed, savedName: trimmed, options: [{ key: optionKey, foods: [] }], activeOptionKey: optionKey }]);
+    this.meals.update(meals => [...meals, { key, time: '', name: trimmed, savedName: trimmed, options: [{ key: optionKey, name: '', foods: [] }], activeOptionKey: optionKey }]);
     this.setMealExpanded(key, true);
     this.newMealName = '';
     this.openFoodSearch(key);
@@ -761,20 +767,74 @@ export class AppComponent implements OnInit, OnDestroy {
     this.selectOption(meal.key, next.key);
     setTimeout(() => document.getElementById('option-tab-' + next.key)?.focus());
   }
-  /** "+" copies the option on screen (same foods and quantities, new portions) and opens the copy. */
+  optionLabel(meal: Meal, index: number) { return meal.options[index]?.name || `Opção ${index + 1}`; }
+  focusOptionTab(optionKey: number) { setTimeout(() => document.getElementById('option-tab-' + optionKey)?.focus()); }
+  /** Double click, F2 or "Renomear": the tab label turns into a field; Enter or leaving saves, Esc cancels. */
+  startRenameOption(mealKey: number, optionKey: number) {
+    this.optionMenu.set(null);
+    this.selectOption(mealKey, optionKey);
+    this.editingOptionKey.set(optionKey);
+    setTimeout(() => {
+      const input = document.getElementById('option-name-' + optionKey) as HTMLInputElement | null;
+      input?.focus(); input?.select();
+    });
+  }
+  /** Blank, or the default "Opção N" typed back, clears the name so the tab follows its position again. */
+  renameOption(mealKey: number, optionKey: number, name: string) {
+    if (this.editingOptionKey() !== optionKey) return;
+    this.editingOptionKey.set(null);
+    const meal = this.meals().find(item => item.key === mealKey);
+    const index = meal?.options.findIndex(option => option.key === optionKey) ?? -1;
+    if (!meal || index < 0) return;
+    const trimmed = name.trim().slice(0, MAX_OPTION_NAME);
+    const saved = trimmed === `Opção ${index + 1}` ? '' : trimmed;
+    this.meals.update(meals => meals.map(item => item.key === mealKey
+      ? { ...item, options: item.options.map(option => option.key === optionKey ? { ...option, name: saved } : option) } : item));
+  }
+  cancelRenameOption(optionKey: number) {
+    this.editingOptionKey.set(null);
+    this.focusOptionTab(optionKey);
+  }
+  openOptionMenu(mealKey: number, optionKey: number, event: MouseEvent) {
+    event.preventDefault();
+    this.selectOption(mealKey, optionKey);
+    const tab = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const fromKeyboard = event.clientX === 0 && event.clientY === 0;
+    const x = fromKeyboard ? tab.left : event.clientX;
+    const y = fromKeyboard ? tab.bottom : event.clientY;
+    this.optionMenu.set({ mealKey, optionKey, x: Math.max(8, Math.min(x, window.innerWidth - 208)), y: Math.max(8, Math.min(y, window.innerHeight - 136)) });
+    setTimeout(() => (document.querySelector('.option-menu [role="menuitem"]') as HTMLElement | null)?.focus());
+  }
+  closeOptionMenu(focusTab = false) {
+    const menu = this.optionMenu();
+    this.optionMenu.set(null);
+    if (menu && focusTab) this.focusOptionTab(menu.optionKey);
+  }
+  /** Up/down move between the menu items; Esc and Tab close it. */
+  optionMenuKey(event: KeyboardEvent) {
+    const items = Array.from((event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="menuitem"]'));
+    const current = items.indexOf(document.activeElement as HTMLElement);
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      items[(current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+    } else if (event.key === 'Escape') {
+      event.stopPropagation();
+      this.closeOptionMenu(true);
+    } else if (event.key === 'Tab') {
+      this.closeOptionMenu();
+    }
+  }
+  menuMeal() { const menu = this.optionMenu(); return menu ? this.meals().find(meal => meal.key === menu.mealKey) ?? null : null; }
+  menuOptionIndex() {
+    const menu = this.optionMenu();
+    return this.menuMeal()?.options.findIndex(option => option.key === menu?.optionKey) ?? -1;
+  }
+  /** "+" adds an empty option after the last one and opens it. */
   addOption(mealKey: number) {
     const meal = this.meals().find(item => item.key === mealKey);
     if (!meal || meal.options.length >= MAX_MEAL_OPTIONS) return;
     this.pendingOptionRemoval.set(null);
-    const invalid = new Map(this.invalidPortions());
-    const foods = this.activeOption(meal).foods.map(item => {
-      const copy = { ...item, key: this.nextKey++ };
-      const message = invalid.get(item.key);
-      if (message !== undefined) invalid.set(copy.key, message);
-      return copy;
-    });
-    const option = { key: this.nextKey++, foods };
-    if (invalid.size !== this.invalidPortions().size) this.invalidPortions.set(invalid);
+    const option: MealOption = { key: this.nextKey++, name: '', foods: [] };
     this.meals.update(meals => meals.map(item => item.key === mealKey ? { ...item, options: [...item.options, option], activeOptionKey: option.key } : item));
     this.calculate();
   }

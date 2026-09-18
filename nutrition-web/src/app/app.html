@@ -326,46 +326,56 @@
           @let openOption = activeOption(meal);
           @let optionIndex = activeOptionIndex(meal);
           @let calculatedOption = result()?.meals?.[mealIndex]?.options?.[optionIndex];
-          <!-- Options as browser tabs on top of the meal sheet: only option 1 counts toward the day; "+" copies the open option;
-               × or middle click closes; dragging a tab reorders (dropping it first makes it option 1). -->
+          <!-- Options as browser tabs on top of the meal sheet: only option 1 counts toward the day; "+" adds an empty option;
+               × or middle click closes; dragging a tab reorders (dropping it first makes it option 1);
+               double click or F2 renames; right click opens Renomear / Definir como principal / Fechar. -->
           <div class="option-strip">
             <div class="option-tabs" role="tablist" [attr.aria-label]="'Opções de ' + meal.savedName"
               cdkDropList cdkDropListOrientation="horizontal" cdkDropListLockAxis="x" (cdkDropListDropped)="dropOption(meal.key, $event)">
               @for (option of meal.options; track option.key; let index = $index) {
-                <div role="tab" class="option-tab" cdkDrag cdkDragLockAxis="x" cdkDragBoundary=".option-tabs" [cdkDragDisabled]="meal.options.length < 2"
-                  [id]="'option-tab-' + option.key" [class.active]="option.key === openOption.key" [class.counts]="index === 0"
+                @let label = optionLabel(meal, index);
+                <div role="tab" class="option-tab" cdkDrag cdkDragLockAxis="x" cdkDragBoundary=".option-tabs" [cdkDragDisabled]="meal.options.length < 2 || editingOptionKey() === option.key"
+                  [id]="'option-tab-' + option.key" [class.active]="option.key === openOption.key" [class.counts]="index === 0" [class.renaming]="editingOptionKey() === option.key"
                   [attr.aria-selected]="option.key === openOption.key" [attr.aria-controls]="'option-panel-' + meal.key" [tabIndex]="option.key === openOption.key ? 0 : -1"
-                  [title]="index === 0 ? 'Opção 1 · conta na meta' : 'Opção ' + (index + 1) + ' · não conta na meta'"
+                  [title]="label + (index === 0 ? ' · conta na meta' : ' · não conta na meta') + ' · clique duplo para renomear'"
                   (click)="selectOption(meal.key, option.key)" (auxclick)="$event.button === 1 && requestRemoveOption(meal.key, option.key)" (mousedown)="$event.button === 1 && $event.preventDefault()"
+                  (contextmenu)="openOptionMenu(meal.key, option.key, $event)" (dblclick)="startRenameOption(meal.key, option.key)"
                   (keydown.arrowleft)="$event.preventDefault(); stepOption(meal, -1)" (keydown.arrowright)="$event.preventDefault(); stepOption(meal, 1)"
-                  (keydown.delete)="requestRemoveOption(meal.key, option.key)">
+                  (keydown.delete)="requestRemoveOption(meal.key, option.key)" (keydown.f2)="$event.preventDefault(); startRenameOption(meal.key, option.key)">
                   @if (index === 0 && meal.options.length > 1) { <i class="option-goal" aria-hidden="true"></i> }
-                  <span class="option-label">Opção {{ index + 1 }}@if (index === 0 && meal.options.length > 1) {<span class="sr-only">, conta na meta</span>}</span>
-                  @if (meal.options.length > 1) {
-                    <button type="button" class="option-close" tabindex="-1" (click)="$event.stopPropagation(); requestRemoveOption(meal.key, option.key)"
-                      [attr.aria-label]="'Fechar Opção ' + (index + 1)" [title]="'Fechar Opção ' + (index + 1)">×</button>
+                  @if (editingOptionKey() === option.key) {
+                    <input #optionName class="option-name-input" [id]="'option-name-' + option.key" [value]="label" [maxLength]="maxOptionName" aria-label="Nome da opção"
+                      (keydown)="$event.stopPropagation()" (keydown.enter)="renameOption(meal.key, option.key, optionName.value); focusOptionTab(option.key)"
+                      (keydown.escape)="cancelRenameOption(option.key)" (blur)="renameOption(meal.key, option.key, optionName.value)"
+                      (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (contextmenu)="$event.stopPropagation()">
+                  } @else {
+                    <span class="option-label">{{ label }}@if (index === 0 && meal.options.length > 1) {<span class="sr-only">, conta na meta</span>}</span>
+                  }
+                  @if (meal.options.length > 1 && editingOptionKey() !== option.key) {
+                    <button type="button" class="option-close" tabindex="-1" (click)="$event.stopPropagation(); requestRemoveOption(meal.key, option.key)" (dblclick)="$event.stopPropagation()"
+                      [attr.aria-label]="'Fechar ' + label" [title]="'Fechar ' + label">×</button>
                   }
                 </div>
               }
             </div>
             <button type="button" class="option-add" (click)="addOption(meal.key)" [disabled]="meal.options.length >= maxMealOptions"
-              [attr.aria-label]="'Nova opção de ' + meal.savedName + ', copiando a Opção ' + (optionIndex + 1)"
-              [title]="meal.options.length >= maxMealOptions ? 'Limite de ' + maxMealOptions + ' opções' : 'Nova opção (cópia da Opção ' + (optionIndex + 1) + ')'">+</button>
+              [attr.aria-label]="'Nova opção de ' + meal.savedName"
+              [title]="meal.options.length >= maxMealOptions ? 'Limite de ' + maxMealOptions + ' opções' : 'Nova opção'">+</button>
             <div class="option-actions">
-              @if (optionIndex > 0) { <button type="button" class="text-button" (click)="makeFirstOption(meal.key, openOption.key)">Tornar opção 1</button> }
+              @if (optionIndex > 0) { <button type="button" class="text-button" (click)="makeFirstOption(meal.key, openOption.key)">Definir como principal</button> }
             </div>
           </div>
           <div class="option-sheet" [class.first-open]="optionIndex === 0">
           @if (pendingOptionRemoval()?.optionKey === openOption.key) {
             <div class="meal-confirmation" role="alertdialog" aria-label="Confirmar fechamento da opção">
-              <p>Fechar a Opção {{ optionIndex + 1 }} e seus alimentos?@if (optionIndex === 0) { A Opção 2 passará a contar na meta. }</p>
+              <p>Fechar {{ optionLabel(meal, optionIndex) }} e seus alimentos?@if (optionIndex === 0) { {{ optionLabel(meal, 1) }} passará a contar na meta. }</p>
               <button type="button" class="secondary-button" (click)="pendingOptionRemoval.set(null)">Cancelar</button>
               <button type="button" class="secondary-button danger" (click)="removeOption(meal.key, openOption.key)">Fechar opção</button>
             </div>
           }
           @if (optionIndex > 0) {
             <div class="option-totals" role="status">
-              <span>Totais da Opção {{ optionIndex + 1 }}</span>
+              <span>Totais de {{ optionLabel(meal, optionIndex) }}</span>
               <span class="meal-chip macro carb" title="Carboidratos"><i aria-hidden="true"></i><span class="sr-only">Carboidratos </span>{{ calculatedOption ? (calculatedOption.totals.carbohydrateG | number:'1.0-1') + 'g' : '—' }}</span>
               <span class="meal-chip macro protein" title="Proteínas"><i aria-hidden="true"></i><span class="sr-only">Proteínas </span>{{ calculatedOption ? (calculatedOption.totals.proteinG | number:'1.0-1') + 'g' : '—' }}</span>
               <span class="meal-chip macro fat" title="Gorduras"><i aria-hidden="true"></i><span class="sr-only">Gorduras </span>{{ calculatedOption ? (calculatedOption.totals.fatG | number:'1.0-1') + 'g' : '—' }}</span>
@@ -662,5 +672,16 @@
       </section>
       </div>
     </div>
+@if (optionMenu(); as menu) {
+  @if (menuMeal(); as meal) {
+    @let index = menuOptionIndex();
+    <div class="option-menu-backdrop" (click)="closeOptionMenu()" (contextmenu)="$event.preventDefault(); closeOptionMenu()" (wheel)="closeOptionMenu()"></div>
+    <div class="option-menu" role="menu" [attr.aria-label]="'Ações de ' + optionLabel(meal, index)" [style.left.px]="menu.x" [style.top.px]="menu.y" (keydown)="optionMenuKey($event)">
+      <button type="button" role="menuitem" (click)="startRenameOption(meal.key, menu.optionKey)">Renomear</button>
+      @if (index > 0) { <button type="button" role="menuitem" (click)="closeOptionMenu(); makeFirstOption(meal.key, menu.optionKey)">Definir como principal</button> }
+      @if (meal.options.length > 1) { <button type="button" role="menuitem" class="danger" (click)="closeOptionMenu(); requestRemoveOption(meal.key, menu.optionKey)">Fechar opção</button> }
+    </div>
+  }
+}
 </main>
 <footer><span>nutrição.</span><span>Planejamento com atenção a cada detalhe.</span></footer>
