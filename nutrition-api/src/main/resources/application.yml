@@ -5,6 +5,8 @@ spring:
     deserialization:
       accept-float-as-int: false
       fail-on-unknown-properties: true
+auth:
+  jwt-secret: ${JWT_SECRET}
 server:
   port: ${SERVER_PORT:8081}
 ---
@@ -16,6 +18,9 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 0
   jpa:
     hibernate:
       ddl-auto: validate
@@ -28,3 +33,4 @@ spring:
   autoconfigure:
     exclude:
       - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+      - org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration

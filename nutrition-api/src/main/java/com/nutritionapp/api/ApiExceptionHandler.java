@@ -4,6 +4,7 @@ import java.util.List;
 import com.nutritionapp.shared.InvalidCalculationException;
 import com.nutritionapp.food.FoodNotFoundException;
 import org.springframework.beans.TypeMismatchException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -22,6 +23,17 @@ import tools.jackson.databind.exc.UnrecognizedPropertyException;
 /** Every 400 carries an {@code errors} array; it is empty only when no field can be identified. */
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+    @ExceptionHandler(ApiFailure.class)
+    public ProblemDetail apiFailure(ApiFailure exception) {
+        return exception.problem();
+    }
+
+    /** Concurrent update detected on flush; patients are the only versioned entity. */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ProblemDetail versionConflict(OptimisticLockingFailureException exception) {
+        return new ApiFailure(409, "O paciente foi alterado em outra sessão. Recarregue.").problem();
+    }
+
     @ExceptionHandler(FoodNotFoundException.class)
     public ProblemDetail foodNotFound(FoodNotFoundException exception) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());

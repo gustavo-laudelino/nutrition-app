@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.nutritionapp.shared.TextSearch;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
@@ -33,9 +34,9 @@ public class DevelopmentFoodCatalog implements FoodCatalog {
 
     @Override
     public FoodPage search(String name, int page, int size) {
-        var terms = FoodSearch.terms(name);
+        var terms = TextSearch.terms(name);
         var matching = foods.stream()
-                .filter(food -> terms.stream().allMatch(FoodSearch.normalize(food.name())::contains)).toList();
+                .filter(food -> terms.stream().allMatch(TextSearch.normalize(food.name())::contains)).toList();
         var items = matching.stream().skip((long) page * size).limit(size).toList();
         return new FoodPage(items, page, size, matching.size());
     }
