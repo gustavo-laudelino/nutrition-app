@@ -4,7 +4,7 @@ Angular 22 + TypeScript. Angular CLI utiliza Vite no servidor de desenvolvimento
 
 ## Executar
 
-Inicie a API com PostgreSQL e as variáveis `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` no ambiente do backend. Depois, em `nutrition-web`:
+Inicie a API com PostgreSQL e as variáveis `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET` no ambiente do backend. Depois, em `nutrition-web`:
 
 ```powershell
 npm ci
@@ -13,15 +13,17 @@ npm start
 
 Abra http://127.0.0.1:4200. `proxy.conf.cjs` encaminha `/api/**` para http://127.0.0.1:8081. `API_TARGET` permite outra porta. Nenhuma credencial do banco é enviada ao navegador.
 
-## Fluxo
+## Fluxo do planejamento
 
-1. **Paciente temporário:** nome, peso, altura, idade, sexo, objetivo e atividade física DRI. Dados ficam em painel lateral aberto pelo botão Paciente; ainda não há entidade de paciente/usuário nem gravação. Objetivo é apenas contexto.
+1. **Paciente:** o botão Paciente abre um **menu suspenso compacto logo abaixo dele, só com busca e nomes** dos pacientes do nutricionista; escolher, clicar fora ou Esc fecham o menu. Os dados do paciente e o **Objetivo** ficam no painel **"Dados do paciente"**, que hoje só abre pelo aviso "Abrir paciente" da estimativa (o botão do topo foi removido; acesso a redefinir). A lista mostra ativos, 20 primeiros, busca por nome com debounce de 250 ms, escolhido marcado, e "Cadastrar paciente" quando a lista está vazia. A escolha preenche nome, sexo, peso, altura, atividade DRI e a idade calculada pelo backend, e os campos ficam somente leitura. **Editar** libera os campos e **Salvar no cadastro** grava com `PUT /api/patients/{id}` (envia o paciente inteiro, preservando telefone, e-mail, observações, nascimento e data das medidas; 409 pede recarregar). **Desvincular** volta ao preenchimento livre mantendo os valores. No painel "Dados do paciente", com paciente escolhido os campos ficam somente leitura até Editar; sem paciente escolhido, é o preenchimento temporário. Sem sessão, o menu só oferece Entrar. Objetivo é apenas contexto da tela e não vai para o cadastro. Abaixo de 19 anos não há estimativa automática (as equações cobrem adultos 19+). O planejamento em si (refeições e metas) continua não sendo salvo.
 2. **Estimativa automática DRI:** método inicial DRI 2023. Confirmar os cinco dados necessários (sair do campo, Enter ou Concluir) dispara o cálculo após 300 ms. Abaixo da estimativa, o botão discreto **Calcular estimativa energética com outra fórmula** revela FAO e fórmula de bolso, com opção de voltar à DRI. FAO solicita PAL numérico próprio. Bolso solicita kcal/kg e preenche diretamente a meta prescrita com o cálculo do backend, sem cartão de estimativa. Dados incompatíveis são rejeitados no backend.
 3. **Decisão profissional:** a estimativa mostra método e parâmetros utilizados. O botão **Usar estimativa como meta** copia explicitamente seu valor para a prescrição. Também é possível digitar qualquer meta positiva sem estimativa, editar o valor ou removê-lo. Recalcular DRI/FAO preserva a prescrição. No modo bolso, alterar peso/fator recalcula a meta; objetivo e outros dados não a alteram. Uma edição manual cancela a requisição pendente; voltar a DRI/FAO preserva a última meta.
 4. **Macros opcionais:** nenhum ou percentual da energia prescrita, com as faixas DRI/AMDR exibidas apenas como sugestão. Trocar de método limpa os números.
 5. **Refeições temporárias (retráteis):** a tela começa sem refeições; atalhos criam Café da manhã, Lanche da manhã, Almoço, Lanche da tarde, Jantar e Ceia, e há nome livre com o botão Nova refeição. Cada refeição é uma linha em grid compartilhado: `[alça] horário | nome | itens/peso/ação | C | P | G | kcal | remover`. Recolhida mostra só o resumo; o botão "N itens" abre/fecha os alimentos. Há "expandir todas" e "recolher todas"; recolher fecha a busca daquela refeição, e criar uma refeição ou abrir sua busca a expande. Campos editáveis (horário, nome, peso) têm fundo branco e borda; valores de leitura não têm borda. Renomear clicando no nome. Horário opcional HH:mm em 24 h (máscara própria), **só na tela**, não enviado à API. Reordenar arrastando pela alça (Angular CDK: bloco segue o ponteiro e vizinhos deslizam) ou com ↑/↓ na alça em foco. Excluir pede confirmação se houver alimentos. A busca de alimentos fica **dentro de cada refeição** (não há catálogo global): o botão "+ Adicionar alimento" do cartão abre a busca naquela refeição, com uma busca aberta por vez; criar uma refeição já abre sua busca. Nome de refeição nunca é enviado vazio: "Nova refeição" fica desabilitado sem nome, e ao apagar o nome de uma refeição o último nome válido continua sendo enviado e é restaurado ao sair do campo (correção de 16/09).
-6. **Total do dia:** anéis concêntricos (energia, C, P, G) enchem até a meta, com segunda volta mais escura no excedente; a legenda usa as cores dos anéis. Os valores vêm exclusivamente dos totais diários retornados pelo backend. Cada cartão mostra os quatro totais da refeição, sem metas próprias. A soma de valores exibidos por refeição pode diferir em centésimos do total diário, pois o backend arredonda apenas após somar as porções exatas.
-7. **Definir composição como meta:** botão no resumo do dia chama `POST /api/target-calculations/from-composition` e aplica a meta energética (= kcal consumidas) e os percentuais de macros equivalentes. Se já houver meta, pede confirmação mostrando a atual e a nova. Quando essa meta volta do backend com restante zero, roda uma animação (anéis de 0 ao valor, tremor e confetes, sem biblioteca), desativada com "reduzir movimento". Os anéis de macros ficam próximos de 100%, não exatos (kcal da tabela ≠ 4/4/9).
+6. **Total do dia:** barra de valor energético ("consumido / meta", restante e %), donut com a distribuição da energia dos macros (`macroEnergyShares`, calculado pelo backend) cercado por um anel com um trecho por meta de macro que enche conforme consumido / meta, e uma barra por macro (C, P, G) com "consumido / meta". Barras param na meta; excedente fica em tom forte com "Acima da meta em X". Passar o mouse ou dar foco em um macro (barra, fatia ou arco) destaca esse macro no donut, clareia os demais e mostra uma descrição com consumido, % da energia dos macros, meta e restante; com o mouse ela segue o cursor, e com o teclado fica ancorada sob o donut. Cores em variáveis CSS: `--energy` verde, `--carb` azul, `--protein` vermelho, `--fat` amarelo (paleta de referência original, restaurada em 17/09). Os valores vêm exclusivamente dos totais diários retornados pelo backend. Cada cartão mostra os quatro totais da refeição, sem metas próprias. A soma de valores exibidos por refeição pode diferir em centésimos do total diário, pois o backend arredonda apenas após somar as porções exatas.
+7. **Definir composição como meta:** botão no resumo do dia chama `POST /api/target-calculations/from-composition` e aplica a meta energética (= kcal consumidas) e os percentuais de macros equivalentes. Se já houver meta, pede confirmação mostrando a atual e a nova. Quando essa meta volta do backend com restante zero, roda uma animação (barras e donut de 0 ao valor, tremor e confetes, sem biblioteca), desativada com "reduzir movimento". As barras de macros ficam próximas de 100%, não exatas (kcal da tabela ≠ 4/4/9).
+
+**Porção pelo nutriente:** na linha do alimento, clicar em C, P, G ou kcal transforma o chip num campo; Enter/sair confirma e Esc cancela. O peso vem de `POST /api/portion-quantities` (arredondado a 0,1 g pelo backend) e é aplicado como edição de quantidade. Só aparece para nutrientes que o alimento tem; erros ficam marcados no chip sem mudar a porção.
 
 Só a busca consulta a cada letra (200 ms de debounce). Quantidade recalcula ao confirmar; nome não recalcula; criar, adicionar/remover, reordenar e excluir recalculam imediatamente. Cada requisição cancela a anterior, e os últimos totais permanecem na tela até a resposta (retirados só em erro). O payload é `{targets, meals:[{name, foods:[{foodId, quantityG}]}]}`; a resposta mantém a ordem das refeições. Não há armazenamento local nem metas por refeição; o horário não entra no payload.
 
@@ -42,6 +44,34 @@ npm test
 
 Saída em `dist/nutrition-web/browser`; publicação exige encaminhamento de `/api/**` pelo servidor. A suíte verifica separação entre estimativa/prescrição/composição, ação explícita de aplicar estimativa, preservação da prescrição após mudanças, parâmetros por metodologia, metas parciais, erros, debounce e cancelamento de requisições.
 
-Não há persistência no navegador: recarregar descarta o planejamento. Consulte também o `HANDOFF.md` na raiz para decisões e continuidade do desenvolvimento.
+O planejamento não é persistido: recarregar o descarta. A sessão das novas telas usa somente sessionStorage. Consulte também o `HANDOFF.md` na raiz para decisões e continuidade do desenvolvimento.
 
-Estado atual (16/09): **44 testes frontend** passando; `npm run build` e `npm test` concluídos. Cobertura de criação, busca por refeição, edição, exclusão com confirmação, reordenação (teclado e soltar), horário 24 h, envio só ao confirmar, manutenção dos valores durante recálculo, composição como meta (direta e com confirmação) e animação sem disparos indevidos. Dependência adicional: `@angular/cdk` 22.1.6 (decisão do usuário).
+Validação do planejamento em 16/09: **44 testes frontend** passando; `npm run build` e `npm test` concluídos. Cobertura de criação, busca por refeição, edição, exclusão com confirmação, reordenação (teclado e soltar), horário 24 h, envio só ao confirmar, manutenção dos valores durante recálculo, composição como meta (direta e com confirmação) e animação sem disparos indevidos. Dependência adicional: `@angular/cdk` 22.1.6 (decisão do usuário).
+
+
+## Rotas e sessão (17/09/2026)
+
+Foi adicionado somente `@angular/router` 22.1.6. O `Shell` hospeda as rotas. As telas do nutricionista ficam dentro de `NutritionistLayout`, com **barra lateral esquerda** (Perfil, Pacientes, Planejamento alimentar, nome e Sair) exibida só com sessão; abaixo de 860 px ela vira barra superior. O planejamento é mantido em memória ao navegar pela barra (`PlanningReuseStrategy`) e descartado ao recarregar, sair ou trocar de conta.
+
+| Rota | Acesso / função |
+|---|---|
+| `/` | Redireciona para `/planejamento` |
+| `/planejamento` | Planejamento (público por enquanto); com sessão, escolhe pacientes cadastrados |
+| `/perfil` | Dados da conta do nutricionista (protegida, somente leitura) |
+| `/login` | Login de nutricionista |
+| `/cadastro` | Cadastro aberto de nutricionista |
+| `/pacientes` | Lista protegida |
+| `/pacientes/novo` | Novo paciente |
+| `/pacientes/:id` | Editar paciente |
+
+Cadastro/login navegam para `/pacientes`. Token em memória e `sessionStorage`, nunca localStorage. Ao recarregar com sessão, `/api/auth/me` recupera o nome para a barra lateral; “Sair” limpa sessão e navega para login. Interceptor envia Bearer somente à própria origem em `/api/auth/me`, `/api/patients` e subrotas. Nunca envia ao planejamento nem a outros servidores. Guard redireciona sem token; 401 protegido limpa a sessão. O token expira em 8 horas, exigindo novo login. Logout não revoga o token no backend.
+
+Lista pesquisa a cada letra com debounce de 250 ms e cancela consultas anteriores; filtro ativos/arquivados reinicia na página zero. Exibe idade e data de medidas retornadas pelo backend. Formulário separa Dados pessoais e Medidas atuais e só envia ao salvar. Edição envia a versão recebida; 409 bloqueia novo salvamento até “Recarregar paciente”. Arquivar/reativar exige confirmação; alterações não salvas são descartadas quando a ação é confirmada. Erros por campo vêm da API. Não há fórmulas nem integração com a calculadora nessas telas.
+
+Build de produção exige fallback das rotas Angular para `index.html`, além do encaminhamento `/api/**`; infraestrutura continua fora do escopo.
+
+### Validação atual
+
+**61 testes passando** (44 de planejamento intactos + 17 de auth/pacientes); `npm run build` passou. Navegador: login, cadastro e sua navegação conferidos visualmente; `/pacientes` sem sessão redireciona a `/login`; `/planejamento` abre sem autenticação. **Fluxos autenticados no navegador/PostgreSQL pendentes por ausência de `JWT_SECRET`**, conforme HANDOFF. API nova está parada e o planejamento mostra erro de serviço enquanto ela não for iniciada com o segredo; não confundir com teste integrado concluído.
+
+`npm audit` apontou dois alertas em dependências de desenvolvimento já existentes: `vitest` 4.0.18 (crítico) e `@vitest/mocker` (moderado), com correção indicada em Vitest 4.1.11. Nenhuma atualização automática foi aplicada, preservando a lista e versões autorizadas; revisão dessa ferramenta de testes fica registrada como pendência separada.
