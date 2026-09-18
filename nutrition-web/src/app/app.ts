@@ -1,16 +1,23 @@
 import { InfoTipComponent } from './info-tip';
-import { DecimalPipe } from '@angular/common';
+import { DatePipe, DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { CdkDrag, CdkDragDrop, CdkDragHandle, CdkDragPlaceholder, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
-import { FormBuilder, FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { Subscription, timer } from 'rxjs';
-import { CalculationResponse, CompositionTargetResponse, DriActivity, EstimateMethod, EstimateRequest, EstimateResponse, Food, FoodPage, MacroMethod, NutritionApi, PatientGoal, Sex, TargetRequest, TargetResponse } from './api';
+import { FormBuilder, FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { Subscription, debounceTime, distinctUntilChanged, timer } from 'rxjs';
+import { CalculationResponse, CompositionTargetResponse, DriActivity, PortionNutrient, EstimateMethod, EstimateRequest, EstimateResponse, Food, FoodPage, MacroMethod, NutritionApi, PatientGoal, Sex, TargetRequest, TargetResponse } from './api';
+import { apiErrors, ApiErrors, NO_ERRORS } from './api-errors';
+import { Session } from './auth/session';
+import { Patient, PatientsApi } from './patients/patients-api';
 
 // savedName is the last non-blank name, sent while the input is temporarily empty.
 // time is a screen-only planning aid ("HH:mm" or empty); it is not sent to the calculation API.
 interface Meal { key: number; time: string; name: string; savedName: string; foods: Portion[] }
 interface Portion { key: number; food: Food; quantityG: number | null }
+type CalculatedMeal = CalculationResponse['meals'][number];
+// Server result aligned with the meals on screen: a portion left out of the request is null.
+type DayResult = Omit<CalculationResponse, 'meals'> & { meals: (Omit<CalculatedMeal, 'foods'> & { foods: (CalculatedMeal['foods'][number] | null)[] })[] };
 interface ConfettiPiece { id: number; x: number; y: number; rotate: number; delay: number; color: string; round: boolean }
 /** "7" → 07:00, "730" → 07:30, "0730" → 07:30; out of 00:00–23:59 → empty. */
 export function normalizeTime(value: string): string {
@@ -22,13 +29,46 @@ export function normalizeTime(value: string): string {
   if (hours > 23 || minutes > 59) return '';
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
+const DONUT_MACROS = [
+  { css: 'carb', letter: 'C', label: 'Carboidratos' },
+  { css: 'protein', letter: 'P', label: 'Proteínas' },
+  { css: 'fat', letter: 'G', label: 'Gorduras' },
+] as const;
+/** Arcs on a circle with pathLength 100, starting at the top, with a small gap between visible slices. */
+function donutSlices(shares: number[]) {
+  const gap = shares.filter(share => share > 0).length > 1 ? 0.8 : 0;
+  let start = 0;
+  return DONUT_MACROS.map((macro, index) => {
+    const share = shares[index];
+    const length = Math.max(share - gap, 0);
+    const slice = { ...macro, share, length, dasharray: `${length} ${100 - length}`, dashoffset: -(start + gap / 2) };
+    start += share;
+    return slice;
+  });
+}
 function sameKcal(value: number | null, expected: number) { return value !== null && Math.abs(value - expected) < 0.01; }
+function alignResult(response: CalculationResponse, meals: Meal[], excluded: ReadonlyMap<number, string>): DayResult {
+  if (!meals.some(meal => meal.foods.some(item => excluded.has(item.key)))) return response;
+  return { ...response, meals: response.meals.map((calculated, index) => {
+    const foods = [...calculated.foods];
+    return { ...calculated, foods: (meals[index]?.foods ?? []).map(item => excluded.has(item.key) ? null : foods.shift() ?? null) };
+  }) };
+}
 type Panel = 'patient' | 'estimate' | 'prescription' | 'macros';
-@Component({ selector: 'app-root', standalone: true, imports: [DecimalPipe, FormsModule, ReactiveFormsModule, InfoTipComponent, CdkDropList, CdkDrag, CdkDragHandle, CdkDragPlaceholder], templateUrl: './app.html',
-  host: { '(document:keydown.escape)': 'closePanel()' } })
+// Nutrients a portion can be sized by, in the food row's column order.
+const PORTION_NUTRIENTS = [
+  { key: 'CARBOHYDRATE', field: 'carbohydrateG', css: 'macro carb', label: 'Carboidratos', noun: 'carboidrato', unit: 'g', format: '1.0-1' },
+  { key: 'PROTEIN', field: 'proteinG', css: 'macro protein', label: 'Proteínas', noun: 'proteína', unit: 'g', format: '1.0-1' },
+  { key: 'FAT', field: 'fatG', css: 'macro fat', label: 'Gorduras', noun: 'gordura', unit: 'g', format: '1.0-1' },
+  { key: 'ENERGY', field: 'energyKcal', css: 'kcal', label: 'Energia', noun: 'energia', unit: ' kcal', format: '1.0-0' },
+] as const;
+@Component({ selector: 'app-root', standalone: true, imports: [DatePipe, DecimalPipe, NgTemplateOutlet, RouterLink, FormsModule, ReactiveFormsModule, InfoTipComponent, CdkDropList, CdkDrag, CdkDragHandle, CdkDragPlaceholder], templateUrl: './app.html',
+  host: { '(document:keydown.escape)': 'closePanel()', '(document:click)': 'closePatientMenuOutside($event)' } })
 export class AppComponent implements OnInit, OnDestroy {
   private readonly api = inject(NutritionApi);
+  private readonly patients = inject(PatientsApi);
   private readonly fb = inject(FormBuilder);
+  readonly session = inject(Session);
   private foodRequest?: Subscription;
   private searchDelay?: Subscription;
   private calculationRequest?: Subscription;
@@ -58,7 +98,7 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly compositionTargetLoading = signal(false);
   readonly compositionTargetErrors = signal<string[]>([]);
   private compositionTargetRequest?: Subscription;
-  // Celebration after "define composition as target": rings fill 0→value, chart shakes, confetti bursts.
+  // Celebration after "define composition as target": bars fill 0→value, donut builds and shakes, confetti bursts.
   readonly celebrating = signal(false);
   readonly celebrationKcal = signal<number | null>(null);
   readonly confetti = signal<ConfettiPiece[]>([]);
@@ -69,7 +109,14 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly pendingMealRemoval = signal<number | null>(null);
   readonly mealShortcuts = ['Café da manhã', 'Lanche da manhã', 'Almoço', 'Lanche da tarde', 'Jantar', 'Ceia'];
   newMealName = '';
-  readonly result = signal<CalculationResponse | null>(null);
+  readonly result = signal<DayResult | null>(null);
+  // Sizing a portion by a nutrient: the chip turns into a field; the backend returns the weight, applied as a quantity edit.
+  readonly portionNutrients = PORTION_NUTRIENTS;
+  readonly editingNutrient = signal<{ portionKey: number; nutrient: PortionNutrient } | null>(null);
+  readonly nutrientError = signal('');
+  private nutrientRequest?: Subscription;
+  // Portions whose quantity the backend rejected, with its message: kept on screen, marked and left out of the calculation until edited.
+  readonly invalidPortions = signal<ReadonlyMap<number, string>>(new Map());
   readonly calculating = signal(false);
   readonly errors = signal<string[]>([]);
   readonly alternativeMethodsVisible = signal(false);
@@ -83,44 +130,83 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly targetsLoading = signal(false);
   readonly targetErrors = signal<string[]>([]);
   readonly metrics = [
-    { key: 'energyKcal', label: 'Energia', unit: 'kcal', css: 'energy' },
+    { key: 'energyKcal', label: 'Valor energético', unit: 'kcal', css: 'energy' },
     { key: 'carbohydrateG', label: 'Carboidratos', unit: 'g', css: 'carb' },
     { key: 'proteinG', label: 'Proteínas', unit: 'g', css: 'protein' },
     { key: 'fatG', label: 'Gorduras', unit: 'g', css: 'fat' },
   ] as const;
   readonly panel = signal<Panel | null>(null);
-  readonly panelTitles: Record<Panel, string> = { patient: 'Paciente', estimate: 'Estimativa energética', prescription: 'Meta energética', macros: 'Metas de macros' };
+  readonly panelTitles: Record<Panel, string> = { patient: 'Dados do paciente', estimate: 'Estimativa energética', prescription: 'Meta energética', macros: 'Metas de macros' };
   readonly macroLabels: Record<MacroMethod, string> = { NONE: 'Nenhum método definido', PERCENTAGE: 'Percentual da meta energética' };
   query = '';
   get estimationMethod() { return this.form.controls.estimation.controls.method.value; }
 
   // Patient data and calculation settings live in drawers, keeping the workspace focused on the diet.
   openPanel(panel: Panel) {
+    this.patientMenuOpen.set(false);
     this.panel.set(panel);
     setTimeout(() => document.querySelector<HTMLElement>('.drawer input, .drawer select')?.focus());
   }
   closePanel() {
+    if (this.patientMenuOpen()) { this.patientMenuOpen.set(false); return; }
     if (this.panel() === null) return;
     // Commit a field still being edited (blur-based controls) before the drawer disappears.
     (document.activeElement as HTMLElement | null)?.blur?.();
     this.panel.set(null);
   }
-  // Visual ring progress only: consumed, target and remaining values come from the backend.
-  get rings() {
+  // Visual bar progress only (capped at the target): consumed, target and remaining values come from the backend.
+  get summaryMetrics() {
     const totals = this.result()?.totals;
-    return this.metrics.map((metric, index) => {
+    return this.metrics.map(metric => {
       const balance = totals?.[metric.key] ?? null;
-      const radius = 110 - index * 14;
-      const circumference = 2 * Math.PI * radius;
       const target = balance?.target ?? null;
       const ratio = balance && target !== null ? (target > 0 ? balance.consumed / target : balance.consumed > 0 ? 1 : 0) : 0;
-      const progress = Math.min(ratio, 1);
-      // Past the target, a darker second lap shows the excess (capped at one extra lap).
-      const overflow = Math.min(Math.max(ratio - 1, 0), 1);
-      return { ...metric, balance, radius, circumference, progress, offset: circumference * (1 - progress),
-        overflow, overflowOffset: circumference * (1 - overflow),
+      return { ...metric, balance, progress: Math.min(ratio, 1),
         percent: target ? Math.round(ratio * 100) : null, exceeded: (balance?.remaining ?? 0) < 0 };
     });
+  }
+  // Macro highlighted by pointer or keyboard, shared by the bars and the donut.
+  readonly highlightedMacro = signal<string | null>(null);
+  // Description position: follows the pointer; null (keyboard) anchors it under the donut.
+  readonly macroTipPosition = signal<{ x: number; y: number } | null>(null);
+  highlightMacro(css: string | null) { this.highlightedMacro.set(css === 'energy' ? null : css); }
+  /** Keeps the description beside the cursor, inside the window. */
+  trackMacro(css: string, event: MouseEvent) {
+    this.highlightMacro(css);
+    if (this.highlightedMacro() === null) { this.macroTipPosition.set(null); return; }
+    const width = Math.min(300, window.innerWidth - 24);
+    this.macroTipPosition.set({
+      x: Math.max(12, Math.min(event.clientX + 16, window.innerWidth - width - 12)),
+      y: Math.max(12, Math.min(event.clientY + 18, window.innerHeight - 140)),
+    });
+  }
+  clearMacro() { this.highlightMacro(null); this.macroTipPosition.set(null); }
+  get macroDetail() {
+    const css = this.highlightedMacro();
+    const index = DONUT_MACROS.findIndex(macro => macro.css === css);
+    const metric = this.summaryMetrics.find(item => item.css === css);
+    if (!metric || index < 0) return null;
+    const donut = this.macroDonut;
+    return { ...metric, consumedShare: donut.consumed?.[index].share ?? null, targetShare: donut.target?.[index].share ?? null };
+  }
+  // Inner donut: consumed macro energy shares from the backend.
+  // Outer ring: one arc per macro sized by its target energy (from the backend), filled by how much of that target was consumed.
+  get macroDonut() {
+    const shares = this.result()?.macroEnergyShares ?? null;
+    const macros = this.targets()?.macros;
+    const targetEnergy = macros?.carbohydrate && macros.protein && macros.fat
+      ? [macros.carbohydrate.energyKcal, macros.protein.energyKcal, macros.fat.energyKcal] : null;
+    const targetTotal = targetEnergy?.reduce((sum, value) => sum + value, 0) ?? 0;
+    const macroMetrics = this.summaryMetrics.slice(1);
+    return {
+      consumed: shares ? donutSlices([shares.carbohydratePercent, shares.proteinPercent, shares.fatPercent]) : null,
+      target: targetEnergy && targetTotal > 0
+        ? donutSlices(targetEnergy.map(value => value * 100 / targetTotal)).map((slice, index) => {
+          const loaded = slice.length * macroMetrics[index].progress;
+          return { ...slice, progress: macroMetrics[index].progress, exceeded: macroMetrics[index].exceeded, loadedDasharray: `${loaded} ${100 - loaded}` };
+        })
+        : null,
+    };
   }
   get macroSummary() {
     const macros = this.targets()?.macros;
@@ -141,7 +227,146 @@ export class AppComponent implements OnInit, OnDestroy {
   }
   get macroMethod() { return this.form.controls.macros.controls.method.value; }
 
+  // Registered patient chosen for this planning: the screen reads it, and editing writes straight to the register.
+  // Nothing about the planning itself is saved.
+  readonly selectedPatient = signal<Patient | null>(null);
+  readonly patientSearch = new FormControl('', { nonNullable: true });
+  readonly patientResults = signal<Patient[] | null>(null);
+  readonly patientTotal = signal(0);
+  readonly patientSearchLoading = signal(false);
+  readonly editingPatient = signal(false);
+  readonly patientSaving = signal(false);
+  readonly patientConflict = signal(false);
+  readonly patientErrors = signal<ApiErrors>(NO_ERRORS);
+  private patientRequest?: Subscription;
+  private patientSearchSubscription?: Subscription;
+  // Drop-down under the "Paciente" button: only search and the nutritionist's patient names.
+  // The chosen patient's data, goal and editing live in the "Dados do paciente" drawer.
+  readonly patientMenuOpen = signal(false);
+  openPatientMenu() {
+    this.patientMenuOpen.set(true);
+    if (this.session.token() && this.patientResults() === null) this.runPatientSearch(this.patientSearch.value);
+    setTimeout(() => document.querySelector<HTMLElement>('.patient-menu input')?.focus());
+  }
+  togglePatientMenu() {
+    if (this.patientMenuOpen()) this.patientMenuOpen.set(false); else this.openPatientMenu();
+  }
+  /** Clicks outside the drop-down close it; composedPath survives buttons that re-render after the click. */
+  closePatientMenuOutside(event: MouseEvent) {
+    if (!this.patientMenuOpen()) return;
+    const inside = event.composedPath().some(target => target instanceof HTMLElement && target.classList.contains('patient-menu-anchor'));
+    if (!inside) this.patientMenuOpen.set(false);
+  }
+  /** DRI/FAO cover adults 19+: below that no automatic estimate is requested. */
+  get belowEstimateAge() {
+    const age = this.form.controls.patient.controls.age.value;
+    return age !== null && age < 19;
+  }
+
+  searchPatients(name: string) {
+    this.patientSearch.setValue(name, { emitEvent: false });
+    this.runPatientSearch(name);
+  }
+  private runPatientSearch(name: string) {
+    this.patientRequest?.unsubscribe();
+    if (!this.session.token()) { this.patientResults.set(null); return; }
+    this.patientSearchLoading.set(true);
+    this.patientErrors.set(NO_ERRORS);
+    this.patientRequest = this.patients.list(name, false, 0).subscribe({
+      next: page => { this.patientResults.set(page.content); this.patientTotal.set(page.totalElements); this.patientSearchLoading.set(false); },
+      error: error => { this.patientResults.set([]); this.patientSearchLoading.set(false); this.patientErrors.set(apiErrors(error)); },
+    });
+  }
+  /** Age comes calculated from the backend; the goal is not part of the register and stays on screen. */
+  choosePatient(patient: Patient) {
+    if (this.editingPatient() || this.patientSaving()) return;
+    this.selectedPatient.set(patient);
+    this.editingPatient.set(false);
+    this.patientConflict.set(false);
+    this.patientErrors.set(NO_ERRORS);
+    this.fillPatientFields(patient);
+    this.setPatientFieldsEnabled(false);
+    this.patientMenuOpen.set(false);
+  }
+  unlinkPatient() {
+    this.selectedPatient.set(null);
+    this.editingPatient.set(false);
+    this.patientConflict.set(false);
+    this.patientErrors.set(NO_ERRORS);
+    this.setPatientFieldsEnabled(true);
+  }
+  editPatient() {
+    if (!this.selectedPatient() || this.patientConflict()) return;
+    setTimeout(() => document.querySelector<HTMLElement>('.drawer .fields input:not(:disabled)')?.focus());
+    this.editingPatient.set(true);
+    this.setPatientFieldsEnabled(true);
+  }
+  cancelEditPatient() {
+    const patient = this.selectedPatient();
+    if (!patient) return;
+    this.editingPatient.set(false);
+    this.patientErrors.set(NO_ERRORS);
+    this.fillPatientFields(patient);
+    this.setPatientFieldsEnabled(false);
+  }
+  /** Sends the whole registered patient with the edited fields on top, so fields not shown here are preserved. */
+  savePatient() {
+    const patient = this.selectedPatient();
+    if (!patient || this.patientSaving() || this.patientConflict()) return;
+    const { name, sex, weightKg, heightCm, driActivity } = this.form.controls.patient.getRawValue();
+    this.patientSaving.set(true);
+    this.patientErrors.set(NO_ERRORS);
+    this.patientRequest?.unsubscribe();
+    this.patientRequest = this.patients.save(patient.id, {
+      ...patient, name: name.trim(), sex: sex === 'UNSPECIFIED' ? null : sex,
+      weightKg, heightCm, driActivity, version: patient.version,
+    }).subscribe({
+      next: saved => {
+        this.patientSaving.set(false);
+        this.selectedPatient.set(saved);
+        this.editingPatient.set(false);
+        this.fillPatientFields(saved);
+        this.setPatientFieldsEnabled(false);
+      },
+      error: error => {
+        this.patientSaving.set(false);
+        if (error.status === 409) {
+          this.patientConflict.set(true);
+          this.patientErrors.set({ detail: 'O paciente foi alterado em outra sessão. Recarregue.', fields: {} });
+        } else this.patientErrors.set(apiErrors(error));
+      },
+    });
+  }
+  reloadPatient() {
+    const patient = this.selectedPatient();
+    if (!patient) return;
+    this.patientRequest?.unsubscribe();
+    this.patientErrors.set(NO_ERRORS);
+    this.patientRequest = this.patients.get(patient.id).subscribe({
+      // Reloading discards the edit that hit the conflict.
+      next: current => { this.patientConflict.set(false); this.editingPatient.set(false); this.choosePatient(current); },
+      error: error => this.patientErrors.set(apiErrors(error)),
+    });
+  }
+  private fillPatientFields(patient: Patient) {
+    this.form.controls.patient.patchValue({
+      name: patient.name, sex: patient.sex ?? 'UNSPECIFIED', age: patient.ageYears,
+      weightKg: patient.weightKg, heightCm: patient.heightCm, driActivity: patient.driActivity,
+    });
+  }
+  // Read-only while a patient is chosen: disabled controls keep their value in getRawValue and in the requests.
+  private setPatientFieldsEnabled(enabled: boolean) {
+    const controls = this.form.controls.patient.controls;
+    for (const control of [controls.name, controls.sex, controls.age, controls.weightKg, controls.heightCm, controls.driActivity]) {
+      if (enabled) control.enable({ emitEvent: false }); else control.disable({ emitEvent: false });
+    }
+    // Age always comes from the register's birth date.
+    if (enabled && this.selectedPatient()) controls.age.disable({ emitEvent: false });
+  }
+
   ngOnInit() {
+    this.formChanges.add(this.patientSearch.valueChanges.pipe(debounceTime(250), distinctUntilChanged())
+      .subscribe(name => this.runPatientSearch(name)));
     let previousMacroMethod = this.macroMethod;
     this.formChanges.add(this.form.controls.macros.valueChanges.subscribe(() => {
       if (this.macroMethod !== previousMacroMethod) {
@@ -190,6 +415,8 @@ export class AppComponent implements OnInit, OnDestroy {
     if (patient.weightKg === null) return false;
     if (estimation.method === 'PER_KG') return estimation.kcalPerKg !== null;
     if (patient.age === null || patient.sex === 'UNSPECIFIED') return false;
+    // DRI/FAO cover adults 19+: no automatic request that the backend would reject.
+    if (patient.age < 19) return false;
     return estimation.method === 'DRI_2023'
       ? patient.heightCm !== null && patient.driActivity !== null
       : estimation.faoPal !== null;
@@ -360,6 +587,7 @@ export class AppComponent implements OnInit, OnDestroy {
   }
   removeMeal(key: number) {
     const index = this.meals().findIndex(meal => meal.key === key);
+    this.forgetInvalidPortions(this.meals()[index]?.foods.map(item => item.key) ?? []);
     this.meals.update(meals => meals.filter(meal => meal.key !== key));
     const result = this.result();
     if (result && index >= 0 && index < result.meals.length) this.result.set({ ...result, meals: result.meals.filter((_, i) => i !== index) });
@@ -399,12 +627,57 @@ export class AppComponent implements OnInit, OnDestroy {
     this.closeFoodSearch();
     this.calculate();
   }
-  changeQuantity(mealKey: number, key: number, quantityG: number | null) {
+  changeQuantity(mealKey: number, key: number, quantityG: number | null, input?: HTMLInputElement) {
+    const portion = this.meals().find(meal => meal.key === mealKey)?.foods.find(item => item.key === key);
+    if (!portion) return;
+    // Empty or unreadable input: the last quantity comes back and nothing is sent.
+    if (quantityG === null) {
+      if (input) input.value = portion.quantityG === null ? '' : String(portion.quantityG);
+      return;
+    }
+    this.forgetInvalidPortions([key]);
     this.meals.update(meals => meals.map(meal => meal.key === mealKey
       ? { ...meal, foods: meal.foods.map(item => item.key === key ? { ...item, quantityG } : item) } : meal));
     this.calculate();
   }
+  /** Only a presence check on the catalog value per 100 g; the weight itself comes from the backend. */
+  canSizeBy(food: Food, field: typeof PORTION_NUTRIENTS[number]['field']) { return (food[field] ?? 0) > 0; }
+  editNutrient(portionKey: number, nutrient: PortionNutrient) {
+    this.nutrientRequest?.unsubscribe();
+    this.nutrientError.set('');
+    this.editingNutrient.set({ portionKey, nutrient });
+    setTimeout(() => { const input = document.querySelector<HTMLInputElement>('.nutrient-edit input'); input?.focus(); input?.select(); });
+  }
+  cancelNutrientEdit() {
+    this.nutrientRequest?.unsubscribe();
+    this.editingNutrient.set(null);
+    this.nutrientError.set('');
+  }
+  /** Empty, unreadable or unchanged values cancel without a request; anything else is validated by the backend. */
+  confirmNutrient(mealKey: number, portion: Portion, nutrient: PortionNutrient, raw: string, current: number | null) {
+    const editing = this.editingNutrient();
+    if (!editing || editing.portionKey !== portion.key || editing.nutrient !== nutrient) return;
+    const amount = raw.trim() === '' ? NaN : Number(raw);
+    if (Number.isNaN(amount) || amount === current) { this.cancelNutrientEdit(); return; }
+    this.nutrientRequest?.unsubscribe();
+    this.nutrientError.set('');
+    this.nutrientRequest = this.api.portionQuantity({ foodId: portion.food.id, nutrient, amount }).subscribe({
+      next: result => {
+        this.editingNutrient.set(null);
+        this.changeQuantity(mealKey, portion.key, result.quantityG);
+      },
+      error: (error: HttpErrorResponse) => this.nutrientError.set(
+        error.error?.errors?.[0]?.message ?? error.error?.detail ?? 'Não foi possível calcular a porção. Tente novamente.'),
+    });
+  }
+  private forgetInvalidPortions(keys: number[]) {
+    if (!keys.some(key => this.invalidPortions().has(key))) return;
+    const invalid = new Map(this.invalidPortions());
+    keys.forEach(key => invalid.delete(key));
+    this.invalidPortions.set(invalid);
+  }
   removeFood(mealKey: number, key: number) {
+    this.forgetInvalidPortions([key]);
     const mealIndex = this.meals().findIndex(meal => meal.key === mealKey);
     const foodIndex = this.meals()[mealIndex]?.foods.findIndex(item => item.key === key) ?? -1;
     this.meals.update(meals => meals.map(meal => meal.key === mealKey
@@ -444,7 +717,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.stopCelebration();
     const reducedMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reducedMotion) return;
-    const fillMs = 2400; // keep in sync with ring-fill / chart-build durations in styles.css
+    const fillMs = 2400; // keep in sync with meter-fill / donut-build / chart-build durations in styles.css
     this.celebrating.set(true);
     const start = performance.now();
     const count = (now: number) => {
@@ -477,9 +750,13 @@ export class AppComponent implements OnInit, OnDestroy {
   }
   calculate() {
     this.calculationDelay?.unsubscribe(); this.invalidate(); this.calculating.set(true);
+    const meals = this.meals();
+    const invalid = this.invalidPortions();
+    const sent = meals.map(meal => meal.foods.filter(item => !invalid.has(item.key)));
     this.calculationRequest = this.api.calculate({ targets: this.targets()?.targets ?? null,
-      meals: this.meals().map(meal => ({ name: meal.name.trim() || meal.savedName, foods: meal.foods.map(item => ({ foodId: item.food.id, quantityG: item.quantityG })) })) }).subscribe({
-      next: result => {
+      meals: meals.map((meal, index) => ({ name: meal.name.trim() || meal.savedName, foods: sent[index].map(item => ({ foodId: item.food.id, quantityG: item.quantityG })) })) }).subscribe({
+      next: response => {
+        const result = alignResult(response, meals, invalid);
         this.result.set(result); this.calculating.set(false);
         const energy = result.totals.energyKcal;
         if (this.celebrationTargetKcal !== null && sameKcal(energy.target, this.celebrationTargetKcal)) {
@@ -487,8 +764,24 @@ export class AppComponent implements OnInit, OnDestroy {
           if (sameKcal(energy.remaining, 0)) this.celebrate(energy.consumed);
         }
       },
-      error: error => { this.result.set(null); this.errors.set(this.errorMessages(error)); this.calculating.set(false); },
+      error: error => {
+        // Only quantity errors: mark those portions and recalculate the rest of the day without them.
+        const rejected = this.rejectedPortions(error, sent);
+        if (rejected.size) { this.invalidPortions.set(new Map([...invalid, ...rejected])); this.calculate(); return; }
+        this.result.set(null); this.errors.set(this.errorMessages(error)); this.calculating.set(false);
+      },
     });
+  }
+  private rejectedPortions(error: HttpErrorResponse, sent: Portion[][]): Map<number, string> {
+    const rejected = new Map<number, string>();
+    const items: { field: string; message: string }[] = error.status === 400 && Array.isArray(error.error?.errors) ? error.error.errors : [];
+    for (const item of items) {
+      const match = /^meals\[(\d+)\]\.foods\[(\d+)\]\.quantityG$/.exec(item.field);
+      const portion = match ? sent[Number(match[1])]?.[Number(match[2])] : undefined;
+      if (!portion) return new Map(); // any other error blocks the whole calculation
+      rejected.set(portion.key, item.message);
+    }
+    return rejected;
   }
   private errorMessages(error: HttpErrorResponse): string[] {
     if (error.status === 0 || error.status >= 500) return ['Não foi possível acessar o serviço. Confira se a API está em execução e tente novamente.'];
@@ -507,7 +800,7 @@ export class AppComponent implements OnInit, OnDestroy {
   }
   ngOnDestroy() {
     this.stopCelebration();
-    for (const subscription of [this.foodRequest,this.searchDelay,this.calculationRequest,this.calculationDelay,this.targetRequest,this.targetDelay,this.estimateRequest,this.estimateDelay,this.compositionTargetRequest,this.formChanges]) subscription?.unsubscribe();
+    for (const subscription of [this.foodRequest,this.searchDelay,this.calculationRequest,this.calculationDelay,this.targetRequest,this.targetDelay,this.estimateRequest,this.estimateDelay,this.compositionTargetRequest,this.patientRequest,this.nutrientRequest,this.formChanges]) subscription?.unsubscribe();
   }
 }
 

@@ -4,14 +4,17 @@ import localePt from '@angular/common/locales/pt';
 import { LOCALE_ID } from '@angular/core';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { AppComponent, normalizeTime } from './app';
+import { Session } from './auth/session';
+import { Patient } from './patients/patients-api';
 import { CalculationResponse, EstimateResponse, Food, TargetResponse } from './api';
 
 registerLocaleData(localePt);
 
 const food: Food = { id:42,name:'Alimento de teste',source:'TEST',sourceCode:'42',energyKcal:100,carbohydrateG:20,proteinG:4,fatG:1 };
 const balance = { target:null,consumed:777,remaining:null };
-const response: CalculationResponse = { meals:[], totals:{energyKcal:balance,carbohydrateG:balance,proteinG:balance,fatG:balance} };
+const response: CalculationResponse = { meals:[], totals:{energyKcal:balance,carbohydrateG:balance,proteinG:balance,fatG:balance}, macroEnergyShares:null };
 const estimate: EstimateResponse = { method:'DRI_2023',estimatedKcal:2437,basalKcal:null,driActivity:'ACTIVE',faoPal:null,faoActivity:null };
 const definition: TargetResponse = {
   prescription:{energyKcal:2000,referenceEstimateKcal:2437,differenceKcal:-437},
@@ -23,7 +26,7 @@ const mealResponse: CalculationResponse = { ...response,meals:[{name:'Almoço',t
 describe('Estimate, professional prescription and independent composition', () => {
   let fixture: ComponentFixture<AppComponent>; let app: AppComponent; let http: HttpTestingController;
   beforeEach(async () => {
-    await TestBed.configureTestingModule({imports:[AppComponent],providers:[provideHttpClient(),provideHttpClientTesting(),{provide:LOCALE_ID,useValue:'pt-BR'}]}).compileComponents();
+    await TestBed.configureTestingModule({imports:[AppComponent],providers:[provideHttpClient(),provideHttpClientTesting(),provideRouter([]),{provide:LOCALE_ID,useValue:'pt-BR'}]}).compileComponents();
     fixture=TestBed.createComponent(AppComponent); app=fixture.componentInstance; http=TestBed.inject(HttpTestingController);
     fixture.detectChanges();
     const initial=http.expectOne('/api/diet-calculations');
@@ -137,7 +140,7 @@ describe('Estimate, professional prescription and independent composition', () =
   });
   it('defines the current composition as target directly when there is none',()=>{
     app.result.set({...response,totals:{energyKcal:{target:null,consumed:124,remaining:null},carbohydrateG:{target:null,consumed:25.8,remaining:null},proteinG:{target:null,consumed:2.6,remaining:null},fatG:{target:null,consumed:1,remaining:null}}});
-    fixture.detectChanges();fixture.nativeElement.querySelector('.ring-action').click();
+    fixture.detectChanges();fixture.nativeElement.querySelector('.summary-action').click();
     const request=http.expectOne('/api/target-calculations/from-composition');
     expect(request.request.body).toEqual({energyKcal:124,carbohydrateG:25.8,proteinG:2.6,fatG:1});
     request.flush({prescribedEnergyKcal:124,carbohydratePercent:84.1762,proteinPercent:8.4829,fatPercent:7.3409});
@@ -221,11 +224,11 @@ describe('Estimate, professional prescription and independent composition', () =
     expect(http.expectOne('/api/diet-calculations').request.body.meals).toEqual([]);
     expect(app.foodSearchMealKey()).toBeNull();
   });
-  it('renders meal totals from the server separately from daily rings',()=>{
+  it('renders meal totals from the server separately from the daily analysis',()=>{
     createMeal();app.addFood(food);http.expectOne('/api/diet-calculations').flush(mealResponse);fixture.detectChanges();
     const totals=fixture.nativeElement.querySelector('.meal-summary-values').textContent;
     expect(totals).toContain('123');expect(totals).toContain('45');expect(totals).toContain('6');expect(totals).toContain('7');
-    expect(fixture.nativeElement.querySelector('.ring-center').textContent).toContain('777');
+    expect(fixture.nativeElement.querySelector('.analysis-metric.energy').textContent).toContain('777');
     expect(totals).not.toContain('Restante');
   });
   it('starts with automatic DRI and reveals alternatives only on request',()=>{
@@ -321,8 +324,8 @@ describe('Estimate, professional prescription and independent composition', () =
   it('keeps temporary patient data in a drawer opened on demand',()=>{
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('[formControlName="weightKg"]')).toBeNull();
-    fixture.nativeElement.querySelector('.patient-trigger').click();fixture.detectChanges();
-    const input:HTMLInputElement=fixture.nativeElement.querySelector('[formControlName="weightKg"]');
+    app.openPanel('patient');fixture.detectChanges();
+    const input:HTMLInputElement=fixture.nativeElement.querySelector('.drawer [formControlName="weightKg"]');
     input.value='80';input.dispatchEvent(new Event('input'));
     expect(app.form.controls.patient.controls.weightKg.value).toBeNull();
     input.dispatchEvent(new Event('blur'));flushComposition();
@@ -428,15 +431,95 @@ describe('Estimate, professional prescription and independent composition', () =
     app.targets.set(definition);app.calculate();const request=http.expectOne('/api/diet-calculations');
     expect(request.request.body.targets).toEqual(definition.targets);
     request.flush({...response,totals:{...response.totals,energyKcal:{target:999,consumed:777,remaining:222},proteinG:{target:0,consumed:10,remaining:-10}}});
-    fixture.detectChanges();expect(fixture.nativeElement.querySelector('.ring-legend-row.energy').textContent).toContain('222');
-    expect(fixture.nativeElement.querySelector('.ring-legend-row.protein.exceeded')).not.toBeNull();
-    expect(fixture.nativeElement.querySelector('.ring-center').textContent).toContain('78%');
-    const energyRing=app.rings[0];expect(energyRing.progress).toBeCloseTo(777/999);
-    expect(app.rings[2].progress).toBe(1);expect(app.rings[1].progress).toBe(0);
-    expect(fixture.nativeElement.querySelector('.ring-legend-row.protein').textContent).toContain('acima da meta');
+    fixture.detectChanges();expect(fixture.nativeElement.querySelector('.analysis-metric.energy').textContent).toContain('222');
+    expect(fixture.nativeElement.querySelector('.analysis-metric.protein.exceeded')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.analysis-metric.energy').textContent).toContain('78%');
+    const energy=app.summaryMetrics[0];expect(energy.progress).toBeCloseTo(777/999);
+    expect(app.summaryMetrics[2].progress).toBe(1);expect(app.summaryMetrics[1].progress).toBe(0);
+    expect(fixture.nativeElement.querySelector('.analysis-metric.protein').textContent).toContain('Acima da meta em 10 g');
+    expect(fixture.nativeElement.querySelector('.analysis-metric.carb').textContent).toContain('Sem meta');
+    const energyFill:HTMLElement=fixture.nativeElement.querySelector('.analysis-metric.energy .meter-fill');
+    expect(Number(energyFill.style.getPropertyValue('--fill'))).toBeCloseTo(777/999);
     app.result.set({...response,totals:{...response.totals,carbohydrateG:{target:100,consumed:150,remaining:-50}}});fixture.detectChanges();
-    expect(app.rings[1].progress).toBe(1);expect(app.rings[1].overflow).toBeCloseTo(0.5);
-    expect(fixture.nativeElement.querySelector('.ring-overflow.carb')).not.toBeNull();
+    expect(app.summaryMetrics[1].progress).toBe(1);
+    expect(fixture.nativeElement.querySelector('.analysis-metric.carb.exceeded')).not.toBeNull();
+  });
+  it('highlights a macro and describes it on hover, from the bar or from the slice',()=>{
+    app.result.set({...response,macroEnergyShares:{carbohydratePercent:50,proteinPercent:20,fatPercent:30},
+      totals:{...response.totals,carbohydrateG:{target:100,consumed:50,remaining:50}}});
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.macro-tip')).toBeNull();
+
+    const carbRow:HTMLElement=fixture.nativeElement.querySelector('.analysis-macros .analysis-metric.carb');
+    carbRow.dispatchEvent(new MouseEvent('mouseenter',{clientX:400,clientY:300}));fixture.detectChanges();
+    expect(app.highlightedMacro()).toBe('carb');
+    expect(fixture.nativeElement.querySelector('.analysis-card').classList).toContain('has-highlight');
+    expect(fixture.nativeElement.querySelector('.donut-slice.carb').classList).toContain('active');
+    expect(fixture.nativeElement.querySelector('.donut-slice.protein').classList).not.toContain('active');
+    const tip=fixture.nativeElement.querySelector('.macro-tip');
+    expect(tip.textContent).toContain('Carboidratos');
+    expect(tip.textContent).toContain('50');expect(tip.textContent).toContain('% da energia dos macros');
+    expect(tip.textContent.replace(/\s+/g,' ')).toContain('Meta 100 g Restante 50 g · 50% da meta');
+    // Follows the cursor, kept inside the window.
+    expect(tip.classList).toContain('following');
+    expect([tip.style.left,tip.style.top]).toEqual(['416px','318px']);
+    carbRow.dispatchEvent(new MouseEvent('mousemove',{clientX:10,clientY:10}));fixture.detectChanges();
+    expect([tip.style.left,tip.style.top]).toEqual(['26px','28px']);
+    carbRow.dispatchEvent(new MouseEvent('mousemove',{clientX:99999,clientY:99999}));fixture.detectChanges();
+    expect(Number(tip.style.left.replace('px',''))).toBeLessThanOrEqual(window.innerWidth-12);
+    expect(Number(tip.style.top.replace('px',''))).toBeLessThanOrEqual(window.innerHeight-12);
+
+    carbRow.dispatchEvent(new MouseEvent('mouseleave'));fixture.detectChanges();
+    expect(app.highlightedMacro()).toBeNull();expect(fixture.nativeElement.querySelector('.macro-tip')).toBeNull();
+
+    fixture.nativeElement.querySelector('.donut-slice.fat').dispatchEvent(new MouseEvent('mouseenter'));fixture.detectChanges();
+    expect(app.highlightedMacro()).toBe('fat');
+    expect(fixture.nativeElement.querySelector('.analysis-metric.fat').classList).toContain('active');
+    expect(fixture.nativeElement.querySelector('.macro-tip').textContent).toContain('Sem meta definida');
+
+    // With the keyboard there is no cursor: the description stays anchored under the donut.
+    fixture.nativeElement.querySelector('.donut-slice.fat').dispatchEvent(new MouseEvent('mouseleave'));fixture.detectChanges();
+    fixture.nativeElement.querySelector('.analysis-metric.protein').dispatchEvent(new FocusEvent('focus'));fixture.detectChanges();
+    const anchored=fixture.nativeElement.querySelector('.macro-tip');
+    expect(anchored.classList).not.toContain('following');
+    expect(anchored.style.left).toBe('');
+    fixture.nativeElement.querySelector('.analysis-metric.protein').dispatchEvent(new FocusEvent('blur'));fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.macro-tip')).toBeNull();
+
+    // The energy row is not part of the donut and never highlights.
+    fixture.nativeElement.querySelector('.analysis-energy .analysis-metric').dispatchEvent(new MouseEvent('mouseenter'));
+    fixture.detectChanges();expect(app.highlightedMacro()).toBeNull();
+  });
+  it('draws the consumed macro distribution from the backend and the target distribution around it',()=>{
+    fixture.detectChanges();
+    expect(app.macroDonut).toEqual({consumed:null,target:null});
+    expect(fixture.nativeElement.querySelectorAll('.donut-slice')).toHaveLength(0);
+    expect(fixture.nativeElement.querySelector('.donut-shares').textContent).toContain('Sem macros');
+
+    app.result.set({...response,macroEnergyShares:{carbohydratePercent:50,proteinPercent:20,fatPercent:30},
+      totals:{...response.totals,carbohydrateG:{target:100,consumed:50,remaining:50},proteinG:{target:100,consumed:150,remaining:-50}}});
+    app.targets.set({...definition,macros:{method:'PERCENTAGE',carbohydrate:{grams:100,energyKcal:400},protein:{grams:100,energyKcal:400},fat:{grams:22.22,energyKcal:200}}});
+    fixture.detectChanges();
+    const donut=app.macroDonut;
+    expect(donut.consumed!.map(slice=>slice.share)).toEqual([50,20,30]);
+    expect(donut.target!.map(slice=>slice.share)).toEqual([40,40,20]);
+    // Slices follow each other from the top, separated by a small gap.
+    expect(donut.consumed![0].dashoffset).toBeCloseTo(-0.4);expect(donut.consumed![1].dashoffset).toBeCloseTo(-50.4);
+    expect(donut.consumed![2].dasharray).toBe('29.2 70.8');
+    expect(fixture.nativeElement.querySelectorAll('.donut-slice')).toHaveLength(3);
+    expect(fixture.nativeElement.querySelectorAll('.donut-target')).toHaveLength(3);
+    // Outer ring loads each target arc by consumed / target: carb half, protein full (exceeded), fat without target.
+    expect(donut.target!.map(slice=>slice.progress)).toEqual([0.5,1,0]);
+    expect(donut.target![0].loadedDasharray).toBe(`${(40-0.8)*0.5} ${100-(40-0.8)*0.5}`);
+    expect(donut.target![2].loadedDasharray).toBe('0 100');
+    expect(fixture.nativeElement.querySelector('.donut-loaded.protein.exceeded')).not.toBeNull();
+    const shares=fixture.nativeElement.querySelector('.donut-shares');
+    expect(shares.textContent).toContain('50%');expect(shares.querySelector('li.carb').getAttribute('title')).toBe('Meta: 40%');
+
+    app.result.set({...response,macroEnergyShares:{carbohydratePercent:0,proteinPercent:0,fatPercent:100}});app.targets.set(definition);
+    fixture.detectChanges();
+    expect(app.macroDonut.consumed![2].dasharray).toBe('100 0');expect(app.macroDonut.target).toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('.donut-slice')).toHaveLength(1);
   });
   it('debounces estimates and cancels obsolete responses',async()=>{
     vi.useFakeTimers();selectDri();await vi.advanceTimersByTimeAsync(299);http.expectNone('/api/energy-estimates');
@@ -461,12 +544,247 @@ describe('Estimate, professional prescription and independent composition', () =
     expect(current.request.body.meals[0].foods).toEqual([{foodId:42,quantityG:150}]);current.flush(mealResponse);
     app.removeFood(app.meals()[0].key,app.meals()[0].foods[0].key);expect(http.expectOne('/api/diet-calculations').request.body.meals[0].foods).toEqual([]);
   });
-  it('forwards invalid portions to backend validation',()=>{
+  it('restores the last quantity when the field is left empty, without recalculating',()=>{
     createMeal();app.addFood(food);http.expectOne('/api/diet-calculations').flush(mealResponse);
-    app.changeQuantity(app.meals()[0].key,app.meals()[0].foods[0].key,null);const request=http.expectOne('/api/diet-calculations');
-    expect(request.request.body.meals[0].foods[0].quantityG).toBeNull();
-    request.flush({errors:[{field:'meals[0].foods[0].quantityG',message:'Informe quantidade'}]},{status:400,statusText:'Bad Request'});
-    expect(app.errors()[0]).toContain('quantidade da porção 1');expect(app.result()).toBeNull();
+    const input=document.createElement('input');input.value='';
+    app.changeQuantity(app.meals()[0].key,app.meals()[0].foods[0].key,null,input);
+    http.expectNone('/api/diet-calculations');
+    expect(input.value).toBe('100');expect(app.meals()[0].foods[0].quantityG).toBe(100);expect(app.result()).not.toBeNull();
+  });
+  it('keeps a portion rejected for its quantity marked and calculates the rest of the day without it',()=>{
+    createMeal();app.addFood(food);http.expectOne('/api/diet-calculations').flush(mealResponse);
+    app.openFoodSearch(app.meals()[0].key);app.addFood({...food,id:7});http.expectOne('/api/diet-calculations').flush(response);
+    const [zeroed,kept]=app.meals()[0].foods;
+    app.changeQuantity(app.meals()[0].key,zeroed.key,0);
+    const rejected=http.expectOne('/api/diet-calculations');
+    expect(rejected.request.body.meals[0].foods).toEqual([{foodId:42,quantityG:0},{foodId:7,quantityG:100}]);
+    rejected.flush({errors:[{field:'meals[0].foods[0].quantityG',message:'Informe uma quantidade maior que zero.'}]},{status:400,statusText:'Bad Request'});
+
+    const retry=http.expectOne('/api/diet-calculations');
+    expect(retry.request.body.meals[0].foods).toEqual([{foodId:7,quantityG:100}]);
+    retry.flush({...mealResponse,meals:[{...mealResponse.meals[0],foods:[{...mealResponse.meals[0].foods[0],foodId:7}]}]});
+    expect(app.errors()).toEqual([]);expect(app.meals()[0].foods).toHaveLength(2);
+    expect(app.invalidPortions().get(zeroed.key)).toBe('Informe uma quantidade maior que zero.');
+    expect(app.result()!.meals[0].foods.map(item=>item?.foodId ?? null)).toEqual([null,7]);
+    fixture.detectChanges();
+    const rows=fixture.nativeElement.querySelectorAll('.meal-body .food-row');
+    expect(rows[0].classList).toContain('invalid-portion');expect(rows[1].classList).not.toContain('invalid-portion');
+    expect(rows[0].querySelector('input').getAttribute('aria-invalid')).toBe('true');
+    expect(rows[1].textContent).toContain('100 kcal');
+
+    app.changeQuantity(app.meals()[0].key,zeroed.key,50);
+    expect(http.expectOne('/api/diet-calculations').request.body.meals[0].foods).toEqual([{foodId:42,quantityG:50},{foodId:7,quantityG:100}]);
+    expect(app.invalidPortions().has(zeroed.key)).toBe(false);expect(kept.quantityG).toBe(100);
+  });
+  it('other validation errors still block the whole calculation',()=>{
+    createMeal();app.addFood(food);http.expectOne('/api/diet-calculations').flush(mealResponse);
+    app.changeQuantity(app.meals()[0].key,app.meals()[0].foods[0].key,150);
+    http.expectOne('/api/diet-calculations').flush({errors:[{field:'meals[0].foods[0].quantityG',message:'Quantidade'},{field:'meals',message:'Limite'}]},{status:400,statusText:'Bad Request'});
+    http.expectNone('/api/diet-calculations');
+    expect(app.result()).toBeNull();expect(app.errors()).toHaveLength(2);expect(app.invalidPortions().size).toBe(0);
+  });
+
+  // Registered patient chosen for the planning (the planning itself is never saved).
+  const registered: Patient = { id:'patient-ficticio', name:'Paciente Fictício', birthDate:'1990-05-20', ageYears:36, sex:'FEMALE',
+    phone:'(11) 90000-0000', email:'ficticio@example.com', notes:'Observação fictícia', weightKg:68.5, heightCm:165,
+    driActivity:'LOW_ACTIVE', measuredAt:'2026-09-10', version:3, archived:false, createdAt:'2026-09-10T00:00:00Z', updatedAt:'2026-09-10T00:00:00Z' };
+  function signIn() { TestBed.inject(Session).token.set('test-only-token'); }
+  const page = (content: Patient[]) => ({content,page:0,size:20,totalElements:content.length,totalPages:1});
+  function openPatientMenu(list: Patient[] = [registered]) {
+    app.openPatientMenu(); fixture.detectChanges();
+    if (TestBed.inject(Session).token()) { http.expectOne(request=>request.url==='/api/patients').flush(page(list)); fixture.detectChanges(); }
+  }
+  function choose(patient: Patient = registered) {
+    app.searchPatients('ficticio');
+    http.expectOne(request=>request.url==='/api/patients').flush(page([patient]));
+    app.choosePatient(patient); fixture.detectChanges();
+    expect(app.patientMenuOpen()).toBe(false);
+  }
+  it('opens a compact drop-down of patient names under the button and closes it on an outside click',()=>{
+    signIn();
+    fixture.nativeElement.querySelector('.patient-trigger').click();fixture.detectChanges();
+    http.expectOne(request=>request.url==='/api/patients').flush(page([registered]));fixture.detectChanges();
+    const menu=fixture.nativeElement.querySelector('.patient-menu');
+    expect(menu).not.toBeNull();expect(fixture.nativeElement.querySelector('.drawer')).toBeNull();
+    expect(menu.closest('.patient-menu-anchor')).not.toBeNull();
+    // Only the search and the names: no data, goal or form in the drop-down.
+    expect(Array.from(menu.querySelectorAll('.patient-names button')).map((button:any)=>button.textContent.trim())).toEqual(['Paciente Fictício']);
+    expect(menu.querySelector('[formControlName]')).toBeNull();
+    expect(menu.textContent).not.toContain('anos');
+    // A click inside keeps it open; a click elsewhere closes it.
+    menu.querySelector('input').click();fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.patient-menu')).not.toBeNull();
+    fixture.nativeElement.querySelector('.summary').click();fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.patient-menu')).toBeNull();
+    // Reopening reuses the loaded list.
+    fixture.nativeElement.querySelector('.patient-trigger').click();fixture.detectChanges();
+    http.expectNone(request=>request.url==='/api/patients');
+    expect(fixture.nativeElement.querySelectorAll('.patient-names button')).toHaveLength(1);
+  });
+  it('shows an empty state with a link to register the first patient',()=>{
+    signIn();openPatientMenu([]);
+    const empty=fixture.nativeElement.querySelector('.patient-names li.empty');
+    expect(empty.textContent).toContain('Nenhum paciente cadastrado');
+    expect(empty.querySelector('a').getAttribute('href')).toBe('/pacientes/novo');
+  });
+  it('without a session the drop-down offers login and never queries patients',()=>{
+    openPatientMenu();
+    expect(fixture.nativeElement.querySelector('.patient-menu').textContent).toContain('Entre na sua conta');
+    app.searchPatients('ficticio');
+    http.expectNone(request=>request.url==='/api/patients');
+    expect(app.patientResults()).toBeNull();
+  });
+  it('choosing a registered patient fills the planning data; data and goal live in the patient drawer',async()=>{
+    vi.useFakeTimers();signIn();openPatientMenu();
+    app.patientSearch.setValue('fic');await vi.advanceTimersByTimeAsync(249);
+    http.expectNone(request=>request.url==='/api/patients');await vi.advanceTimersByTimeAsync(1);
+    const search=http.expectOne(request=>request.url==='/api/patients');
+    expect(search.request.params.get('name')).toBe('fic');expect(search.request.params.get('archived')).toBe('false');
+    search.flush(page([registered]));fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('.patient-names button').click();fixture.detectChanges();
+    // Choosing closes the drop-down and never opens the side drawer.
+    expect(fixture.nativeElement.querySelector('.patient-menu')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.drawer')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.patient-trigger').textContent).toContain('Paciente Fictício');
+    fixture.nativeElement.querySelector('.patient-trigger').click();fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.patient-names button').classList).toContain('selected');
+    fixture.nativeElement.querySelector('.summary').click();fixture.detectChanges();
+
+    // "Dados do paciente": read-only fields from the register, plus the goal (screen only).
+    app.openPanel('patient');fixture.detectChanges();
+    const drawer=fixture.nativeElement.querySelector('.drawer');
+    expect(drawer.querySelector('.patient-chosen').textContent).toContain('Paciente Fictício');
+    expect(drawer.querySelector('[formControlName="weightKg"]').disabled).toBe(true);
+    expect(drawer.querySelector('[formControlName="goal"]').disabled).toBe(false);
+    expect(app.form.controls.patient.getRawValue()).toEqual({name:'Paciente Fictício',sex:'FEMALE',age:36,weightKg:68.5,heightCm:165,driActivity:'LOW_ACTIVE',goal:null});
+    expect(app.selectedPatient()?.id).toBe(registered.id);
+    // Age comes calculated from the backend; the screen never derives it from the birth date.
+    expect(app.form.controls.patient.controls.age.value).toBe(registered.ageYears);
+    await vi.advanceTimersByTimeAsync(400);
+    http.expectOne('/api/energy-estimates').flush(estimate);
+    await vi.advanceTimersByTimeAsync(400);flushComposition();
+    http.match('/api/target-calculations').forEach(pending=>pending.cancelled||pending.flush(definition));
+    flushComposition();
+  });
+  it('saves the edited fields straight to the register, keeping the fields not shown here',()=>{
+    signIn();openPatientMenu();choose();
+    app.openPanel('patient');app.editPatient();fixture.detectChanges();
+    expect(app.form.controls.patient.controls.weightKg.disabled).toBe(false);
+    expect(fixture.nativeElement.querySelector('.drawer [formControlName="weightKg"]').disabled).toBe(false);
+    app.form.controls.patient.patchValue({weightKg:70,driActivity:'ACTIVE'});flushComposition();
+    app.savePatient();
+    const request=http.expectOne('/api/patients/'+registered.id);
+    expect(request.request.method).toBe('PUT');
+    expect(request.request.body).toEqual({...registered,weightKg:70,driActivity:'ACTIVE',version:3});
+    request.flush({...registered,weightKg:70,driActivity:'ACTIVE',version:4});
+    fixture.detectChanges();
+    expect(app.editingPatient()).toBe(false);
+    expect(app.selectedPatient()?.version).toBe(4);
+    expect(app.form.controls.patient.controls.weightKg.disabled).toBe(true);
+    flushComposition();
+  });
+  it('shows the version conflict and reloads the patient',()=>{
+    signIn();openPatientMenu();choose();
+    app.openPanel('patient');app.editPatient();app.form.controls.patient.patchValue({weightKg:70});flushComposition();
+    app.savePatient();
+    http.expectOne('/api/patients/'+registered.id).flush({detail:'Conflict'},{status:409,statusText:'Conflict'});
+    fixture.detectChanges();
+    expect(app.patientConflict()).toBe(true);
+    expect(fixture.nativeElement.querySelector('.drawer .patient-error').textContent).toContain('alterado em outra sessão');
+    app.savePatient();http.expectNone('/api/patients/'+registered.id);
+
+    app.reloadPatient();
+    http.expectOne('/api/patients/'+registered.id).flush({...registered,weightKg:72,version:9});
+    fixture.detectChanges();
+    expect(app.patientConflict()).toBe(false);expect(app.form.controls.patient.controls.weightKg.value).toBe(72);
+    flushComposition();
+  });
+  it('unlinking keeps the values on screen and frees the fields',()=>{
+    signIn();openPatientMenu();choose();
+    app.openPanel('patient');fixture.detectChanges();
+    app.unlinkPatient();fixture.detectChanges();
+    expect(app.selectedPatient()).toBeNull();
+    expect(app.form.controls.patient.controls.weightKg.disabled).toBe(false);
+    expect(app.form.controls.patient.getRawValue().weightKg).toBe(68.5);
+    expect(fixture.nativeElement.querySelector('.drawer .patient-chosen')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.drawer').textContent).toContain('Nenhum paciente escolhido');
+    flushComposition();
+  });
+  it('does not estimate for a patient under 19 and explains why',async()=>{
+    vi.useFakeTimers();signIn();openPatientMenu();
+    choose({...registered,ageYears:15,birthDate:'2011-05-20'});
+    await vi.advanceTimersByTimeAsync(600);
+    http.expectNone('/api/energy-estimates');
+    expect(app.belowEstimateAge).toBe(true);
+    app.openPanel('estimate');fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.patient-missing').textContent).toContain('19 anos ou mais');
+    // The professional can still prescribe manually.
+    app.form.controls.prescribedEnergyKcal.setValue(1800);await vi.advanceTimersByTimeAsync(400);
+    http.expectOne('/api/target-calculations').flush(definition);flushComposition();
+  });
+  // Sizing a portion by a nutrient: the backend returns the weight; the screen never calculates it.
+  function foodRow() { return fixture.nativeElement.querySelector('.meal-body .food-row') as HTMLElement; }
+  function withCalculatedFood(item: Food = food) {
+    createMeal();app.addFood(item);
+    http.expectOne('/api/diet-calculations').flush({...mealResponse,meals:[{...mealResponse.meals[0],foods:[{...mealResponse.meals[0].foods[0],foodId:item.id}]}]});
+    fixture.detectChanges();
+  }
+  it('sizes a portion by the desired carbohydrate and recalculates with the weight from the backend',()=>{
+    withCalculatedFood();
+    const chip:HTMLButtonElement=foodRow().querySelector('.nutrient-chip.carb')!;
+    expect(chip.textContent).toContain('20g');
+    chip.click();fixture.detectChanges();
+    const input:HTMLInputElement=foodRow().querySelector('.nutrient-edit.carb input')!;
+    expect(Number(input.value)).toBe(20);
+    input.value='40';input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'}));input.dispatchEvent(new Event('blur'));
+    const request=http.expectOne('/api/portion-quantities');
+    expect(request.request.body).toEqual({foodId:42,nutrient:'CARBOHYDRATE',amount:40});
+    expect(request.request.headers.has('Authorization')).toBe(false);
+    request.flush({foodId:42,nutrient:'CARBOHYDRATE',amount:40,quantityG:200});
+    // Applied as a normal weight edit: same recalculation as typing 200 g.
+    expect(app.meals()[0].foods[0].quantityG).toBe(200);
+    expect(http.expectOne('/api/diet-calculations').request.body.meals[0].foods).toEqual([{foodId:42,quantityG:200}]);
+    fixture.detectChanges();
+    expect(foodRow().querySelector('.nutrient-edit')).toBeNull();
+  });
+  it('sizes by energy too, and cancels without a request on Escape, empty or unchanged values',()=>{
+    withCalculatedFood();
+    const open=(css:string)=>{(foodRow().querySelector('.nutrient-chip.'+css) as HTMLButtonElement).click();fixture.detectChanges();
+      return foodRow().querySelector('.nutrient-edit input') as HTMLInputElement;};
+    let input=open('kcal');
+    input.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));fixture.detectChanges();
+    expect(app.editingNutrient()).toBeNull();input.dispatchEvent(new Event('blur'));
+    input=open('kcal');input.value='';input.dispatchEvent(new Event('blur'));fixture.detectChanges();
+    input=open('kcal');input.dispatchEvent(new Event('blur'));fixture.detectChanges();
+    http.expectNone('/api/portion-quantities');
+    input=open('kcal');input.value='150';input.dispatchEvent(new Event('blur'));
+    const request=http.expectOne('/api/portion-quantities');
+    expect(request.request.body).toEqual({foodId:42,nutrient:'ENERGY',amount:150});
+    request.flush({foodId:42,nutrient:'ENERGY',amount:150,quantityG:150});
+    flushComposition();
+  });
+  it('does not offer sizing by a nutrient the food does not have',()=>{
+    withCalculatedFood({...food,proteinG:0});
+    expect(foodRow().querySelector('.nutrient-chip.protein')).toBeNull();
+    expect(foodRow().querySelector('.meal-chip.protein')!.tagName).toBe('SPAN');
+    expect(foodRow().querySelector('.nutrient-chip.carb')).not.toBeNull();
+  });
+  it('keeps the portion and shows the backend message when sizing fails',()=>{
+    withCalculatedFood();
+    (foodRow().querySelector('.nutrient-chip.fat') as HTMLButtonElement).click();fixture.detectChanges();
+    const input:HTMLInputElement=foodRow().querySelector('.nutrient-edit input')!;
+    input.value='0.0001';input.dispatchEvent(new Event('blur'));
+    http.expectOne('/api/portion-quantities').flush(
+      {detail:'Há campos inválidos.',errors:[{field:'amount',message:'Quantidade muito pequena: a porção ficaria com menos de 0,1 g.'}]},
+      {status:400,statusText:'Bad Request'});
+    fixture.detectChanges();
+    expect(app.meals()[0].foods[0].quantityG).toBe(100);
+    http.expectNone('/api/diet-calculations');
+    const edit=foodRow().querySelector('.nutrient-edit.fat')!;
+    expect(edit.classList).toContain('invalid');
+    expect(edit.getAttribute('title')).toContain('menos de 0,1 g');
+    expect(foodRow().querySelector('[role="alert"]')!.textContent).toContain('menos de 0,1 g');
   });
   it('searches while typing and collapses when cleared',async()=>{
     createMeal();fixture.detectChanges();

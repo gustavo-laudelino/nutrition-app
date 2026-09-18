@@ -9,7 +9,7 @@
 .field-with-help{position:relative;min-width:0}.field-with-help>app-info-tip{position:absolute;right:0;top:-5px}.field-with-help>label{padding-right:26px}.field-with-help>label>input,.field-with-help>label>select{width:calc(100% + 26px)}.method-help{display:flex;align-items:center;justify-content:space-between;color:#707d69;font-size:11px}.section-heading>app-info-tip{margin-left:auto}
 
 /* Patient drawer: temporary patient data kept out of the main workspace. */
-.patient-trigger{margin-left:18px;display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 14px 5px 5px;color:#293f34;text-align:left}
+.patient-trigger{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 14px 5px 5px;color:#293f34;text-align:left}
 .patient-trigger:hover{border-color:#b9cbbf;background:#f7faf6}
 .patient-trigger-icon{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--green);color:#fff;font-size:12px;font-weight:600}
 .patient-trigger-text{display:grid;line-height:1.25}
@@ -25,7 +25,38 @@
 .drawer-done{margin-top:auto;justify-content:center}
 .patient-missing{margin-top:16px;padding:12px;border:1px dashed #cfdbd2;border-radius:8px;font-size:11px;color:#5f6f64;display:grid;gap:6px;line-height:1.5}
 .patient-missing .text-button{justify-self:start;padding:0}
-@media(max-width:760px){.patient-trigger{margin-left:auto}.patient-trigger-text strong{max-width:120px}}
+
+/* Patient drop-down: compact list of names under the "Paciente" button. */
+.patient-menu-anchor{position:relative;margin-left:18px}
+.patient-trigger-chevron{width:18px;height:18px;flex:none;fill:var(--muted);transition:transform .2s}
+.patient-trigger-chevron.open{transform:rotate(180deg)}
+.patient-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:45;width:260px;max-width:calc(100vw - 32px);display:grid;gap:6px;padding:8px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 26px #10231a1f;transform-origin:top right;animation:patient-menu-drop .14s ease-out}
+.patient-menu-search{height:32px;padding:0 10px;font-size:12px;border-radius:8px}
+.patient-names{list-style:none;margin:0;padding:0;display:grid;max-height:260px;overflow:auto}
+.patient-names button{display:block;width:100%;padding:7px 10px;border:0;border-radius:7px;background:transparent;text-align:left;font-size:12px;color:#293f34;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.patient-names button:hover{background:#f1f5f1}
+.patient-names button.selected{background:#eaf6f0;color:#1b7050;font-weight:600}
+.patient-names li.empty{padding:7px 10px;font-size:11px;color:var(--muted)}
+.patient-names li.empty a{color:var(--green);font-weight:600}
+.patient-menu-note{margin:0;padding:2px 10px;font-size:11px;line-height:1.5;color:var(--muted)}
+.patient-menu-link{justify-self:start;padding:2px 10px 6px;font-size:12px;font-weight:600;color:var(--green)}
+@keyframes patient-menu-drop{from{opacity:0;transform:translateY(-4px)}}
+@media (prefers-reduced-motion: reduce){.patient-menu{animation:none}}
+
+/* Chosen registered patient in the "Dados do paciente" drawer: read-only until "Editar" writes to the register. */
+.patient-chosen{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;padding:12px;border:1px solid #dfe6e0;border-radius:12px;background:#f7faf6}
+.patient-chosen>div{display:grid;gap:2px;min-width:0}
+.patient-chosen small{font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
+.patient-chosen strong{font-size:13px;color:#1f4a36}
+.patient-chosen span{font-size:11px;color:#5f6d63}
+.patient-chosen-actions{display:flex;align-items:center;gap:10px;margin-left:auto}
+.patient-chosen-actions .pill-button{height:30px;padding:0 12px;border-radius:8px;background:rgba(35,168,120,.14);color:#1b7050;border:1px solid rgba(35,168,120,.35);font-size:11px;font-weight:600}
+.patient-error{margin:0;color:#934b32;font-size:11px;line-height:1.5}
+.patient-field-error{display:block;margin-top:4px;color:#934b32;font-size:10px;font-weight:400}
+.patient-field-error:empty{display:none}
+/* Read-only fields while a patient is chosen. */
+.drawer .fields input:disabled,.drawer .fields select:disabled{background:#f3f5f1;color:#5f6d63;opacity:1}
+@media(max-width:760px){.patient-menu-anchor{margin-left:auto}.patient-trigger-text strong{max-width:120px}}
 
 /* Single-column workspace: estimate and targets are summarized in config buttons and edited in drawers. */
 main>.main-column{position:static}
@@ -49,37 +80,67 @@ main>.main-column{position:static}
 .config-button.has-error .config-value{color:#9a5530}
 @media(max-width:1100px){.config-bar{grid-template-columns:1fr}}
 
-/* Ring summary: sticky on the right, one concentric ring per metric filling up to its target. */
+/* Day analysis: sticky on the right; energy bar, macro distribution donut and one bar per macro. */
+:root{--energy:#3f7d62;--energy-soft:#e3efe8;--energy-strong:#24513e;--energy-text:#2f6a50;--carb:#4a84c4;--carb-soft:#e3edf8;--carb-strong:#2a5a91;--carb-text:#2f6399;--protein:#d65a52;--protein-soft:#f9e4e2;--protein-strong:#9c332d;--protein-text:#a93a33;--fat:#e3b53a;--fat-soft:#fbf1d6;--fat-strong:#a9820f;--fat-text:#8a6a0a}
 .config-bar{margin-bottom:22px}
-.workspace-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:22px;align-items:start}
+.workspace-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:start}
 .work-column{display:grid;gap:22px;min-width:0}
-.ring-card{position:sticky;top:20px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:20px 20px 16px;box-shadow:0 1px 2px #223f3108}
-.ring-card .summary-heading{margin-bottom:6px}
-.ring-chart{position:relative;width:100%;max-width:280px;margin:0 auto;aspect-ratio:1}
-.ring-chart svg{display:block;width:100%;height:100%}
-.ring-track{fill:none;stroke:#eef1ec;stroke-width:10}
-.ring-progress{fill:none;stroke-width:10;stroke-linecap:round;transition:stroke-dashoffset .6s ease,stroke .3s}
-.ring-progress.energy{stroke:#3f7d62}.ring-progress.carb{stroke:#4a84c4}.ring-progress.protein{stroke:#d65a52}.ring-progress.fat{stroke:#e3b53a}
-.ring-overflow{fill:none;stroke-width:10;stroke-linecap:round;transition:stroke-dashoffset .6s ease}
-.ring-overflow.energy{stroke:#24513e}.ring-overflow.carb{stroke:#2a5a91}.ring-overflow.protein{stroke:#9c332d}.ring-overflow.fat{stroke:#a9820f}
-.ring-progress.empty{stroke-opacity:0}
-.ring-center{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:2px;text-align:center;pointer-events:none}
-.ring-center strong{font-size:30px;font-weight:600;letter-spacing:-1px;color:#244c38;line-height:1}
-.ring-center span{font-size:11px;color:var(--muted)}
-.ring-center em{font-style:normal;font-size:12px;font-weight:600;color:#3f7d62;margin-top:4px}
-.ring-center em.exceeded{color:#293f34}
-.ring-legend{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:2px}
-.ring-legend-row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:9px 4px;border-top:1px solid #f0f2ed;font-size:12px;color:#556458}
-.ring-legend-row:first-child{border-top:0}
-.legend-label{display:flex;align-items:center;gap:6px;font-weight:600}
-.legend-values{text-align:right;white-space:nowrap}
-.legend-values strong{color:#293f34;font-weight:600}
-.legend-values span{color:var(--muted)}
-.legend-remaining{grid-column:1/-1;font-size:10px;color:var(--muted);padding-left:12px}
-.ring-legend-row.exceeded .legend-remaining{color:var(--ring-text);font-weight:600}
-.ring-legend-row{--ring:#3f7d62;--ring-text:#2f6a50}.ring-legend-row.carb{--ring:#4a84c4;--ring-text:#2f6399}.ring-legend-row.protein{--ring:#d65a52;--ring-text:#a93a33}.ring-legend-row.fat{--ring:#e3b53a;--ring-text:#8a6a0a}.ring-legend-row .dot{width:9px;height:9px;background:var(--ring)}.ring-legend-row .legend-label{color:var(--ring-text)}
-@media(max-width:1100px){.workspace-grid{grid-template-columns:minmax(0,1fr) 300px}}
-@media(max-width:860px){.workspace-grid{grid-template-columns:1fr}.ring-card{position:static;order:-1}}
+.analysis-card{position:sticky;top:20px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:20px 20px 16px;box-shadow:0 1px 2px #223f3108}
+.analysis-card .summary-heading{margin-bottom:14px}
+.analysis-card .energy{--metric:var(--energy);--metric-soft:var(--energy-soft);--metric-strong:var(--energy-strong);--metric-text:var(--energy-text)}
+.analysis-card .carb{--metric:var(--carb);--metric-soft:var(--carb-soft);--metric-strong:var(--carb-strong);--metric-text:var(--carb-text)}
+.analysis-card .protein{--metric:var(--protein);--metric-soft:var(--protein-soft);--metric-strong:var(--protein-strong);--metric-text:var(--protein-text)}
+.analysis-card .fat{--metric:var(--fat);--metric-soft:var(--fat-soft);--metric-strong:var(--fat-strong);--metric-text:var(--fat-text)}
+.analysis-metric{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 8px}
+.analysis-label{display:flex;align-items:center;gap:6px;min-width:0;font-size:13px;font-weight:600;color:#34423a;white-space:nowrap}
+.analysis-label svg{width:15px;height:15px;flex:none;fill:none;stroke:var(--metric-text);stroke-width:1.8;stroke-linejoin:round}
+.analysis-value{margin-left:auto;font-size:11px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.analysis-value strong{font-size:14px;font-weight:700;color:#293f34;margin-right:2px}
+.meter{flex-basis:100%;display:block;height:10px;border-radius:999px;background:var(--metric-soft);overflow:hidden}
+.meter-fill{display:block;height:100%;width:calc(var(--fill,0) * 100%);border-radius:inherit;background:var(--metric);transition:width .6s ease,background .3s}
+.analysis-metric.exceeded .meter-fill{background:var(--metric-strong)}
+.analysis-remaining{flex-basis:100%;margin-top:-2px;font-size:10px;color:var(--muted)}
+.analysis-metric.exceeded .analysis-remaining{color:var(--metric-text);font-weight:600}
+.analysis-energy{padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid #f0f2ed}
+.analysis-energy .analysis-value strong{font-size:19px}
+.analysis-body{display:grid;grid-template-columns:104px minmax(0,1fr);gap:16px;align-items:center}
+.analysis-macros{display:grid;gap:12px;min-width:0}
+.analysis-macros .analysis-label{font-size:12px}
+.analysis-macros .analysis-value strong{font-size:13px}
+.analysis-macros .meter{height:8px}
+.analysis-donut{display:grid;gap:10px;justify-items:center;min-width:0}
+.donut-chart{position:relative;width:104px;height:104px}
+.donut-chart svg{display:block;width:100%;height:100%;overflow:visible}
+.donut-track{fill:none;stroke:#f1f3ef}
+.donut-track.outer,.donut-target,.donut-loaded{stroke-width:7}
+.donut-track.inner,.donut-slice{stroke-width:32}
+.donut-target{fill:none;stroke:var(--metric);stroke-opacity:.25;transition:stroke-dasharray .6s ease,stroke-dashoffset .6s ease}
+.donut-loaded{fill:none;stroke:var(--metric);transition:stroke-dasharray .6s ease,stroke-dashoffset .6s ease}
+.donut-loaded.exceeded{stroke:var(--metric-strong)}
+.donut-slice{fill:none;stroke:var(--metric);transition:stroke-dasharray .6s ease,stroke-dashoffset .6s ease}
+.donut-shares{list-style:none;margin:0;padding:0;display:grid;gap:3px;width:100%;font-size:11px;color:#556458}
+.donut-shares li{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.donut-shares li span{display:inline-flex;align-items:center;gap:5px;font-weight:600}
+.donut-shares i{width:7px;height:7px;border-radius:50%;background:var(--metric)}
+.donut-shares strong{font-weight:600;color:#293f34;font-variant-numeric:tabular-nums}
+.donut-shares li.empty{justify-content:center;color:var(--muted);font-size:10px}
+.analysis-donut{position:relative}
+/* Hovering or focusing a macro highlights its slice and arc and describes it. */
+.analysis-metric[tabindex]{cursor:default;border-radius:10px;outline-offset:4px}
+.analysis-metric.active .analysis-label{color:var(--metric-text)}
+.donut-slice,.donut-loaded{transition:stroke-dasharray .6s ease,stroke-dashoffset .6s ease,stroke-width .2s,opacity .2s}
+.analysis-card.has-highlight .donut-slice:not(.active),.analysis-card.has-highlight .donut-loaded:not(.active),.analysis-card.has-highlight .donut-target{opacity:.28}
+.analysis-card.has-highlight .analysis-metric:not(.active):not(.energy){opacity:.55}
+.donut-slice.active{stroke-width:36}
+.donut-loaded.active{stroke-width:9}
+.macro-tip{position:absolute;left:0;right:auto;width:min(300px,calc(100vw - 60px));top:calc(100% + 8px);z-index:6;pointer-events:none;display:grid;gap:3px;padding:10px 12px;border-radius:12px;background:#fff;border:1px solid var(--line);box-shadow:0 8px 20px #223f3118;font-size:11px;line-height:1.5;color:#556458}
+.macro-tip strong{font-size:12px;color:var(--metric-text)}
+.macro-tip em{font-style:normal;font-weight:600;color:#34423a;margin-right:4px}
+/* With a pointer the description follows the cursor; with the keyboard it stays anchored under the donut. */
+.macro-tip.following{position:fixed;width:min(300px,calc(100vw - 24px))}
+@media(max-width:1100px){.workspace-grid{grid-template-columns:minmax(0,1fr) 300px}.analysis-body{grid-template-columns:1fr}.analysis-donut{grid-template-columns:104px minmax(0,1fr);align-items:center;gap:16px}}
+@media(max-width:860px){.workspace-grid{grid-template-columns:1fr}.analysis-card{position:static;order:-1}.analysis-body{grid-template-columns:120px minmax(0,1fr);gap:24px}.analysis-donut{grid-template-columns:1fr}.donut-chart{width:120px;height:120px}}
+@media(max-width:480px){.analysis-body{grid-template-columns:1fr}.analysis-donut{grid-template-columns:120px minmax(0,1fr);align-items:center;gap:20px}}
 
 .field-reference{display:block;margin-top:5px;font-size:10px;font-weight:400;color:var(--muted)}
 
@@ -108,7 +169,7 @@ main>.main-column{position:static}
 .meal-summary-values{display:flex;gap:6px}
 .meal-chip.macro{min-width:78px;justify-content:center}
 .meal-chip.macro i{width:7px;height:7px;border-radius:50%;background:var(--chip-dot)}
-.meal-chip.carb{--chip-dot:#4a84c4}.meal-chip.protein{--chip-dot:#d65a52}.meal-chip.fat{--chip-dot:#e3b53a}
+.meal-chip.carb{--chip-dot:var(--carb)}.meal-chip.protein{--chip-dot:var(--protein)}.meal-chip.fat{--chip-dot:var(--fat)}
 .meal-chip.kcal{min-width:92px;justify-content:center}
 .meal-toggle{display:flex;align-items:center;gap:6px;height:36px;padding:0 14px;border:0;border-radius:8px;background:#23a878;color:#fff;font-size:13px;font-weight:600;white-space:nowrap}
 .meal-toggle:hover{background:#1d9068}
@@ -269,7 +330,7 @@ button.meal-name-chip:hover{border-color:#9fbfae;background:#fbfdfb}
 .config-button::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--config-accent,#23a878)}
 .config-button.estimate{--config-accent:#8cc4aa}
 .config-button.prescription{--config-accent:#23a878}
-.config-button.macros{--config-accent:linear-gradient(#4a84c4 0 33%,#d65a52 33% 66%,#e3b53a 66%)}
+.config-button.macros{--config-accent:linear-gradient(var(--carb) 0 33%,var(--protein) 33% 66%,var(--fat) 66%)}
 .config-button.macros::before{background:var(--config-accent)}
 .config-label{font-size:11px;color:#4f5c53;letter-spacing:1px}
 .config-action{opacity:1;padding:3px 9px;border-radius:999px;background:rgba(35,168,120,.12);color:#1b7050;font-size:11px}
@@ -280,7 +341,7 @@ button.meal-name-chip:hover{border-color:#9fbfae;background:#fbfdfb}
 .macro-values{gap:18px;font-size:24px}
 .macro-values span{display:inline-flex;align-items:baseline;gap:5px}
 .macro-values i{align-self:center;width:9px;height:9px;border-radius:50%}
-.macro-values .macro-C i{background:#4a84c4}.macro-values .macro-P i{background:#d65a52}.macro-values .macro-G i{background:#e3b53a}
+.macro-values .macro-C i{background:var(--carb)}.macro-values .macro-P i{background:var(--protein)}.macro-values .macro-G i{background:var(--fat)}
 .config-button.has-error::before{background:#e0a37f}
 
 /* Grid with a time column: [handle] time | name | C | P | G | kcal | actions. */
@@ -309,9 +370,9 @@ button.meal-name-chip:hover{border-color:#9fbfae;background:#fbfdfb}
 
 /* "Define composition as target" action in the day summary. */
 .composition-target{display:grid;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid #f0f2ed}
-.ring-action{height:40px;border-radius:10px;background:rgba(35,168,120,.12);color:#1b7050;border:1px solid rgba(35,168,120,.3);font-size:13px;font-weight:600}
-.ring-action:hover:not(:disabled){background:rgba(35,168,120,.2);border-color:rgba(35,168,120,.45)}
-.ring-action-note{margin:0;font-size:10px;line-height:1.5;color:var(--muted);text-align:center}
+.summary-action{height:40px;border-radius:10px;background:rgba(35,168,120,.12);color:#1b7050;border:1px solid rgba(35,168,120,.3);font-size:13px;font-weight:600}
+.summary-action:hover:not(:disabled){background:rgba(35,168,120,.2);border-color:rgba(35,168,120,.45)}
+.summary-action-note{margin:0;font-size:10px;line-height:1.5;color:var(--muted);text-align:center}
 .composition-confirm{display:grid;gap:10px;padding:12px;border-radius:10px;background:#f4f8f5;border:1px solid rgba(35,168,120,.25);font-size:12px;line-height:1.55;color:#3f4d44}
 .composition-confirm p{margin:0}
 .composition-confirm strong{font-weight:600;color:#1f4a36}
@@ -319,12 +380,13 @@ button.meal-name-chip:hover{border-color:#9fbfae;background:#fbfdfb}
 .composition-confirm .pill-button{height:32px;padding:0 12px;border-radius:8px;background:rgba(35,168,120,.14);color:#1b7050;border:1px solid rgba(35,168,120,.35)}
 .composition-confirm .pill-button.subtle{background:transparent;color:#5f6d63;border-color:#d5dad6}
 
-/* Celebration: rings fill from zero while the chart grows and shakes, then pops with confetti. */
-.ring-card.celebrating{overflow:visible}
-.ring-card.celebrating .ring-progress{animation:ring-fill 2.4s cubic-bezier(.45,0,.25,1) both}
-.ring-card.celebrating .ring-overflow{opacity:0}
-.ring-card.celebrating .ring-chart{animation:chart-build 2.4s ease-in,chart-pop .7s cubic-bezier(.2,1.8,.4,1) 2.4s forwards}
-@keyframes ring-fill{from{stroke-dashoffset:var(--ring-circumference)}}
+/* Celebration: bars and donut fill from zero while the donut grows and shakes, then pops with confetti. */
+.analysis-card.celebrating{overflow:visible}
+.analysis-card.celebrating .meter-fill{animation:meter-fill 2.4s cubic-bezier(.45,0,.25,1) both}
+.analysis-card.celebrating .donut-slice,.analysis-card.celebrating .donut-loaded{animation:donut-build 2.4s cubic-bezier(.45,0,.25,1) both}
+.analysis-card.celebrating .donut-chart svg{animation:chart-build 2.4s ease-in,chart-pop .7s cubic-bezier(.2,1.8,.4,1) 2.4s forwards}
+@keyframes meter-fill{from{width:0}}
+@keyframes donut-build{from{stroke-dasharray:0 100}}
 /* Shake grows with the fill: small wobble first, violent rattle right before the pop. */
 @keyframes chart-build{
   0%{transform:scale(1) translate(0,0) rotate(0)}
@@ -354,7 +416,7 @@ button.meal-name-chip:hover{border-color:#9fbfae;background:#fbfdfb}
   60%{opacity:1;transform:translate(var(--x),var(--y)) rotate(var(--r)) scale(1)}
   100%{opacity:0;transform:translate(var(--x),calc(var(--y) + 90px)) rotate(calc(var(--r) * 1.4)) scale(.9)}
 }
-@media (prefers-reduced-motion: reduce){.ring-card.celebrating .ring-chart,.ring-card.celebrating .ring-progress{animation:none}}
+@media (prefers-reduced-motion: reduce){.analysis-card.celebrating .donut-chart svg,.analysis-card.celebrating .meter-fill,.analysis-card.celebrating .donut-slice,.analysis-card.celebrating .donut-loaded{animation:none}}
 
 /* Columns: [handle] time | name | quantity/action | C | P | G | kcal | remove. */
 .meal-panel{--meal-cols:18px 70px minmax(0,1fr) 88px 66px 66px 66px 82px 36px}
@@ -384,6 +446,21 @@ button.meal-name-chip:hover{border-color:#9fbfae;background:#fbfdfb}
 .meal-panel .time-chip:focus-within,.meal-panel .meal-name-chip.editing:focus-within,.meal-panel .quantity-chip:focus-within{border-color:#49836a;box-shadow:0 0 0 3px #3a806322}
 .meal-panel .time-chip.empty{border-style:dashed}
 .meal-panel .quantity-chip input{cursor:text}
+/* Portion rejected for its quantity: stays in the meal, translucent and out of the totals, with the field in red until edited. */
+.meal-panel .food-row.invalid-portion>:not(.quantity-chip){opacity:.45}
+.meal-panel .quantity-chip.invalid{border-color:#d9776b;background:#fdeceb}
+.meal-panel .quantity-chip.invalid:hover{border-color:#c95f52}
+.meal-panel .quantity-chip.invalid:focus-within{border-color:#c95f52;box-shadow:0 0 0 3px #d9776b33}
+.meal-panel .quantity-chip.invalid,.meal-panel .quantity-chip.invalid input{color:#a3392f}
+/* Sizing a portion by a nutrient: chips are clickable; the edited one becomes a field like the weight. */
+.meal-panel .food-row .nutrient-chip{cursor:pointer;font:inherit;font-size:13px;font-weight:500;color:#34423a;transition:border-color .15s,background .15s}
+.meal-panel .food-row .nutrient-chip:hover{background:#fff;border-color:#6aa58a}
+.meal-panel .food-row .nutrient-chip:focus-visible{outline:2px solid #49836a;outline-offset:1px}
+.meal-panel .nutrient-edit{gap:3px;padding:0 6px;background:#fff;border:1px solid #49836a;box-shadow:0 0 0 3px #3a806322;cursor:text}
+.meal-panel .nutrient-edit input{flex:1;min-width:0;width:100%;height:100%;margin:0;padding:0 2px;border:0;background:transparent;box-shadow:none!important;outline:none;text-align:right;font-size:13px;font-weight:600;color:#34423a;-moz-appearance:textfield}
+.meal-panel .nutrient-edit input::-webkit-inner-spin-button{appearance:none}
+.meal-panel .nutrient-edit span:not(.sr-only){font-size:11px;color:var(--muted)}
+.meal-panel .nutrient-edit.invalid{border-color:#d9776b;background:#fdeceb;box-shadow:0 0 0 3px #d9776b33}
 /* Search results keep their dashed "suggestion" look. */
 .meal-panel .food-row.result .meal-chip{background:transparent;border:1px dashed #b9c1bb}
 
@@ -395,3 +472,7 @@ button.meal-name-chip:hover{border-color:#9fbfae;background:#fbfdfb}
 .meal-summary .meal-toggle .meal-chevron{width:18px;height:18px;flex:none}
 .meal-count{white-space:nowrap}
 .meal-summary .meal-toggle,.meal-summary .row-actions .meal-toggle{justify-content:center;gap:6px;padding:0 10px}
+
+/* Inside the nutritionist's sidebar layout the planning top bar drops its own brand (the sidebar shows it). */
+.app-frame.with-sidebar .topbar .brand{display:none}
+.app-frame.with-sidebar .topbar{padding-left:28px}

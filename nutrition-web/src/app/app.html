@@ -1,10 +1,39 @@
 <header class="topbar">
   <a class="brand" href="/" aria-label="Nutrição, página inicial"><span class="brand-icon">n</span> nutrição<span class="brand-dot">.</span></a>
   <span class="topbar-label">ESPAÇO DO NUTRICIONISTA</span>
-  <button type="button" class="patient-trigger" (click)="openPanel('patient')" aria-haspopup="dialog" [attr.aria-expanded]="panel() === 'patient'">
-    <span class="patient-trigger-icon" aria-hidden="true">P</span>
-    <span class="patient-trigger-text"><small>Paciente</small><strong>{{ patientSummary || 'Preencher dados' }}</strong></span>
-  </button>
+  <div class="patient-menu-anchor">
+    <button type="button" class="patient-trigger" (click)="togglePatientMenu()" aria-haspopup="listbox" [attr.aria-expanded]="patientMenuOpen()" aria-controls="patient-menu">
+      <span class="patient-trigger-icon" aria-hidden="true">P</span>
+      <span class="patient-trigger-text"><small>Paciente</small><strong>{{ selectedPatient()?.name || patientSummary || (session.token() ? 'Escolher paciente' : 'Sem paciente') }}</strong></span>
+      <svg class="patient-trigger-chevron" [class.open]="patientMenuOpen()" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.7 9.3a1 1 0 0 1 1.4 0L12 13.2l3.9-3.9a1 1 0 1 1 1.4 1.4l-4.6 4.6a1 1 0 0 1-1.4 0L6.7 10.7a1 1 0 0 1 0-1.4z"/></svg>
+    </button>
+    <!-- Compact drop-down: search and the nutritionist's patient names only. Data, goal and editing are in "Dados do paciente". -->
+    @if (patientMenuOpen()) {
+      <div class="patient-menu" id="patient-menu" role="dialog" aria-label="Escolher paciente">
+        @if (!session.token()) {
+          <p class="patient-menu-note">Entre na sua conta para escolher seus pacientes.</p>
+          <a class="patient-menu-link" routerLink="/login">Entrar</a>
+        } @else {
+          <input class="patient-menu-search" [formControl]="patientSearch" type="search" placeholder="Buscar paciente" aria-label="Buscar paciente por nome" autocomplete="off">
+          @if (patientResults(); as results) {
+            <ul class="patient-names" [attr.aria-busy]="patientSearchLoading()">
+              @for (patient of results; track patient.id) {
+                <li>
+                  <button type="button" [class.selected]="selectedPatient()?.id === patient.id" [attr.aria-pressed]="selectedPatient()?.id === patient.id" (click)="choosePatient(patient)">{{ patient.name }}</button>
+                </li>
+              } @empty {
+                <li class="empty">{{ patientSearch.value ? 'Nenhum paciente com esse nome.' : 'Nenhum paciente cadastrado.' }} <a routerLink="/pacientes/novo">Cadastrar</a></li>
+              }
+            </ul>
+            @if (patientTotal() > results.length) { <p class="patient-menu-note">Mais {{ patientTotal() - results.length }} pacientes: busque pelo nome.</p> }
+          } @else if (patientSearchLoading()) {
+            <p class="patient-menu-note" role="status">Carregando…</p>
+          }
+          @if (patientErrors().detail && !selectedPatient()) { <p role="alert" class="patient-error">{{ patientErrors().detail }}</p> }
+        }
+      </div>
+    }
+  </div>
 </header>
 
 <form [formGroup]="form" (ngSubmit)="updateTargets()" novalidate>
@@ -18,12 +47,42 @@
 
       @switch (current) {
         @case ('patient') {
-          <p class="drawer-note">Dados temporários para testar os cálculos. Não são salvos.</p>
+          <!-- Patient data used by the planning, plus the goal (screen context only, not part of the register).
+               With a registered patient chosen the fields are read-only; "Editar" writes straight to the register. -->
+          @if (selectedPatient(); as patient) {
+            <div class="patient-chosen">
+              <div>
+                <small>Paciente cadastrado</small>
+                <strong>{{ patient.name }}</strong>
+                <span>{{ patient.ageYears === null ? 'idade não informada' : patient.ageYears + ' anos' }}@if (patient.measuredAt) { · medidas de {{ patient.measuredAt | date:'dd/MM/yyyy' }} }</span>
+              </div>
+              <div class="patient-chosen-actions">
+                @if (!editingPatient()) {
+                  <button type="button" class="text-button" (click)="editPatient()" [disabled]="patientConflict()">Editar</button>
+                  <button type="button" class="text-button" (click)="unlinkPatient()">Desvincular</button>
+                } @else {
+                  <button type="button" class="pill-button" (click)="savePatient()" [disabled]="patientSaving()">{{ patientSaving() ? 'Salvando…' : 'Salvar no cadastro' }}</button>
+                  <button type="button" class="text-button" (click)="cancelEditPatient()" [disabled]="patientSaving()">Cancelar</button>
+                }
+              </div>
+            </div>
+            @if (patientConflict()) { <button type="button" class="text-button" (click)="reloadPatient()">Recarregar paciente</button> }
+            <p class="drawer-note">
+              @if (editingPatient()) { As alterações de nome, sexo, peso, altura e atividade são gravadas no cadastro do paciente. }
+              @else { Dados do cadastro. Para alterar, use Editar. O planejamento em si continua temporário. }
+            </p>
+          } @else {
+            <p class="drawer-note">
+              @if (session.token()) { Nenhum paciente escolhido: estes dados são temporários e não são salvos. Para usar um paciente cadastrado, escolha em "Paciente", no topo. }
+              @else { Dados temporários para testar os cálculos. Não são salvos. }
+            </p>
+          }
+          @if (patientErrors().detail) { <p role="alert" class="patient-error">{{ patientErrors().detail }}</p> }
           <div formGroupName="patient" class="fields">
-            <label>Nome<input formControlName="name" placeholder="Nome do paciente" autocomplete="off"></label>
+            <label>Nome<input formControlName="name" placeholder="Nome do paciente" autocomplete="off"><span class="patient-field-error">{{ patientErrors().fields['name'] }}</span></label>
             <div class="field-pair">
-              <label>Peso (kg)<input formControlName="weightKg" type="number" step="any" placeholder="80"></label>
-              <label>Altura (cm)<input formControlName="heightCm" type="number" step="any" placeholder="175"></label>
+              <label>Peso (kg)<input formControlName="weightKg" type="number" step="any" placeholder="80"><span class="patient-field-error">{{ patientErrors().fields['weightKg'] }}</span></label>
+              <label>Altura (cm)<input formControlName="heightCm" type="number" step="any" placeholder="175"><span class="patient-field-error">{{ patientErrors().fields['heightCm'] }}</span></label>
             </div>
             <div class="field-pair">
               <label>Idade (anos)<input formControlName="age" type="number" step="1" placeholder="30"></label>
@@ -41,7 +100,10 @@
         }
 
         @case ('estimate') {
-          @if (needsPatientData && !estimate() && !estimateLoading()) {
+          @if (belowEstimateAge) {
+            <div class="patient-missing"><span>As equações DRI e FAO deste MVP cobrem adultos de 19 anos ou mais, então a estimativa automática não é calculada para este paciente. A meta pode ser prescrita manualmente e a dieta continua sendo montada normalmente.</span></div>
+          }
+          @if (needsPatientData && !estimate() && !estimateLoading() && !belowEstimateAge) {
             <div class="patient-missing"><span>Preencha os dados do paciente para calcular a estimativa.</span><button type="button" class="text-button" (click)="openPanel('patient')">Abrir paciente</button></div>
           }
           <div formGroupName="estimation" class="fields">
@@ -262,13 +324,36 @@
         <div class="meal-body" [id]="'meal-body-' + meal.key">
           @for (portion of meal.foods; track portion.key; let index = $index) {
             @let calculatedFood = result()?.meals?.[mealIndex]?.foods?.[index];
-            <div class="food-row">
+            @let quantityError = invalidPortions().get(portion.key);
+            <div class="food-row" [class.invalid-portion]="quantityError">
               <span class="meal-chip food-name-chip" [title]="portion.food.name + ' · ' + portion.food.source"><strong>{{ portion.food.name }}</strong></span>
-              <label class="meal-chip quantity-chip"><input type="number" step="any" [ngModel]="portion.quantityG" [ngModelOptions]="{ updateOn: 'blur' }" (ngModelChange)="changeQuantity(meal.key, portion.key, $event)" (keydown.enter)="$any($event.target).blur()" [attr.aria-label]="'Quantidade de ' + portion.food.name + ' na refeição ' + (mealIndex + 1)"><span>g</span></label>
-              <span class="meal-chip macro carb" title="Carboidratos"><i aria-hidden="true"></i><span class="sr-only">Carboidratos </span>{{ calculatedFood ? (calculatedFood.nutrients.carbohydrateG | number:'1.0-1') + 'g' : '—' }}</span>
-              <span class="meal-chip macro protein" title="Proteínas"><i aria-hidden="true"></i><span class="sr-only">Proteínas </span>{{ calculatedFood ? (calculatedFood.nutrients.proteinG | number:'1.0-1') + 'g' : '—' }}</span>
-              <span class="meal-chip macro fat" title="Gorduras"><i aria-hidden="true"></i><span class="sr-only">Gorduras </span>{{ calculatedFood ? (calculatedFood.nutrients.fatG | number:'1.0-1') + 'g' : '—' }}</span>
-              <span class="meal-chip kcal">{{ calculatedFood ? (calculatedFood.nutrients.energyKcal | number:'1.0-0') + ' kcal' : '— kcal' }}</span>
+              <label class="meal-chip quantity-chip" [class.invalid]="quantityError" [attr.title]="quantityError ?? null"><input #quantityInput type="number" step="any" [ngModel]="portion.quantityG" [ngModelOptions]="{ updateOn: 'blur' }" (ngModelChange)="changeQuantity(meal.key, portion.key, $event, quantityInput)" (keydown.enter)="$any($event.target).blur()" [attr.aria-label]="'Quantidade de ' + portion.food.name + ' na refeição ' + (mealIndex + 1)" [attr.aria-invalid]="quantityError ? true : null" [attr.aria-describedby]="quantityError ? 'quantity-error-' + portion.key : null"><span>g</span></label>
+              @if (quantityError) { <span class="sr-only" [id]="'quantity-error-' + portion.key">{{ quantityError }}</span> }
+              <!-- C, P, G and kcal: click to size the portion by that nutrient (weight calculated by the backend). -->
+              @for (nutrient of portionNutrients; track nutrient.key) {
+                @let nutrientValue = calculatedFood ? calculatedFood.nutrients[nutrient.field] : null;
+                @if (editingNutrient()?.portionKey === portion.key && editingNutrient()?.nutrient === nutrient.key) {
+                  <label [class]="'meal-chip nutrient-edit ' + nutrient.css" [class.invalid]="nutrientError()" [attr.title]="nutrientError() || null">
+                    <span class="sr-only">{{ nutrient.label }} desejado de {{ portion.food.name }}</span>
+                    <input #nutrientInput type="number" step="any" min="0" [value]="nutrientValue"
+                      (keydown.enter)="nutrientInput.blur()" (keydown.escape)="cancelNutrientEdit(); $event.stopPropagation()"
+                      (blur)="confirmNutrient(meal.key, portion, nutrient.key, nutrientInput.value, nutrientValue)"
+                      [attr.aria-invalid]="nutrientError() ? true : null" [attr.aria-describedby]="nutrientError() ? 'nutrient-error-' + portion.key : null">
+                    <span>{{ nutrient.unit.trim() }}</span>
+                  </label>
+                  @if (nutrientError()) { <span class="sr-only" role="alert" [id]="'nutrient-error-' + portion.key">{{ nutrientError() }}</span> }
+                } @else if (nutrientValue !== null && canSizeBy(portion.food, nutrient.field)) {
+                  <button type="button" [class]="'meal-chip nutrient-chip ' + nutrient.css" (click)="editNutrient(portion.key, nutrient.key)"
+                    [title]="'Definir a porção pela quantidade de ' + nutrient.noun"
+                    [attr.aria-label]="nutrient.label + ' de ' + portion.food.name + ': ' + (nutrientValue | number:nutrient.format) + nutrient.unit + '. Definir a porção por ' + nutrient.noun">
+                    @if (nutrient.css !== 'kcal') { <i aria-hidden="true"></i> }{{ nutrientValue | number:nutrient.format }}{{ nutrient.unit }}
+                  </button>
+                } @else {
+                  <span [class]="'meal-chip ' + nutrient.css" [title]="nutrient.label">
+                    @if (nutrient.css !== 'kcal') { <i aria-hidden="true"></i><span class="sr-only">{{ nutrient.label }} </span> }{{ nutrientValue !== null ? (nutrientValue | number:nutrient.format) + nutrient.unit : (nutrient.css === 'kcal' ? '— kcal' : '—') }}
+                  </span>
+                }
+              }
               <div class="row-actions">
                 <button type="button" class="meal-icon-button subtle" (click)="removeFood(meal.key, portion.key)" [attr.aria-label]="'Remover ' + portion.food.name + ' da refeição ' + (mealIndex + 1)" title="Remover alimento">×</button></div>
             </div>
@@ -315,50 +400,122 @@
     </section>
     <p class="bottom-note">Os totais são calculados mesmo sem metas. Quando há uma meta, o restante negativo indica que ela foi ultrapassada. Planejamento temporário: os dados não são salvos ao recarregar a página.</p>
       </div>
-      <aside class="summary ring-card" [class.celebrating]="celebrating()" aria-label="Resumo nutricional" [attr.aria-busy]="calculating()">
+      <aside class="summary analysis-card" [class.celebrating]="celebrating()" [class.has-highlight]="highlightedMacro() !== null" aria-label="Resumo nutricional" [attr.aria-busy]="calculating()">
         <div class="summary-heading"><h2>Total do dia</h2><span class="summary-status" role="status">{{ calculating() ? 'Atualizando…' : result() ? 'Atualizado' : 'Aguardando cálculo' }}</span></div>
-        @let ringList = rings;
-        <div class="ring-chart">
-          <svg viewBox="0 0 240 240" aria-hidden="true">
-            @for (ring of ringList; track ring.key) {
-              <circle class="ring-track" cx="120" cy="120" [attr.r]="ring.radius" />
-              <circle [class]="'ring-progress ' + ring.css" [class.exceeded]="ring.exceeded" [class.empty]="ring.progress === 0"
-                [style.--ring-circumference]="ring.circumference + 'px'" cx="120" cy="120" [attr.r]="ring.radius" [attr.stroke-dasharray]="ring.circumference" [attr.stroke-dashoffset]="ring.offset" transform="rotate(-90 120 120)" />
-              @if (ring.overflow > 0) {
-                <circle [class]="'ring-overflow ' + ring.css" cx="120" cy="120" [attr.r]="ring.radius"
-                  [attr.stroke-dasharray]="ring.circumference" [attr.stroke-dashoffset]="ring.overflowOffset" transform="rotate(-90 120 120)" />
-              }
+        @let metricList = summaryMetrics;
+        @let donut = macroDonut;
+
+        <!-- One row per metric: icon, name, consumed / target, bar capped at the target and remaining line (all values from the backend). -->
+        <ng-template #metricRow let-metric>
+          <div [class]="'analysis-metric ' + metric.css" [class.exceeded]="metric.exceeded" [class.active]="highlightedMacro() === metric.css"
+            [attr.tabindex]="metric.css === 'energy' ? null : 0" [attr.aria-describedby]="highlightedMacro() === metric.css ? 'macro-tip' : null"
+            (mouseenter)="trackMacro(metric.css, $event)" (mousemove)="trackMacro(metric.css, $event)" (mouseleave)="clearMacro()"
+            (focus)="highlightMacro(metric.css)" (blur)="clearMacro()">
+            <span class="analysis-label">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                @switch (metric.css) {
+                  @case ('energy') { <path d="M12 3c.6 3 4.5 5.2 4.5 9.8a4.5 4.5 0 0 1-9 0c0-2.2 1.1-3.6 2.3-4.6.1 1.7.9 2.9 2 3.2-.4-3.2-.6-5.6.2-8.4z"/> }
+                  @case ('carb') { <circle cx="12" cy="12" r="7"/> }
+                  @case ('protein') { <path d="M12 4.5l7.5 7.5-7.5 7.5L4.5 12z"/> }
+                  @case ('fat') { <path d="M12 3.5c3.2 4.2 6 7.4 6 10.6a6 6 0 0 1-12 0c0-3.2 2.8-6.4 6-10.6z"/> }
+                }
+              </svg>
+              {{ metric.label }}
+            </span>
+            @if (metric.balance; as balance) {
+              @let decimals = metric.key === 'energyKcal' ? '1.0-0' : '1.0-1';
+              <span class="analysis-value">
+                <strong>{{ (metric.key === 'energyKcal' ? (celebrationKcal() ?? balance.consumed) : balance.consumed) | number:decimals }}</strong>
+                <span>@if (balance.target !== null) { / {{ balance.target | number:decimals }} }{{ metric.unit }}</span>
+              </span>
+              <span class="meter" aria-hidden="true"><span class="meter-fill" [style.--fill]="metric.progress"></span></span>
+              <span class="analysis-remaining">
+                @if (balance.remaining !== null) {
+                  @if (metric.exceeded) { Acima da meta em {{ -balance.remaining | number:'1.0-2' }} {{ metric.unit }} } @else { Restante {{ balance.remaining | number:'1.0-2' }} {{ metric.unit }} }
+                  @if (metric.percent !== null) { · {{ metric.percent }}% }
+                } @else { Sem meta }
+              </span>
+            } @else {
+              <span class="analysis-value muted">—</span>
+              <span class="meter" aria-hidden="true"><span class="meter-fill"></span></span>
             }
-          </svg>
-          <div class="ring-center">
-            @if (result(); as response) {
-              <strong>{{ (celebrationKcal() ?? response.totals.energyKcal.consumed) | number:'1.0-0' }}</strong>
-              @if (response.totals.energyKcal.target !== null) {
-                <span>de {{ response.totals.energyKcal.target | number:'1.0-0' }} kcal</span>
-                <em [class.exceeded]="ringList[0].exceeded">{{ ringList[0].percent }}%@if (ringList[0].exceeded) { · acima da meta }</em>
-              } @else { <span>kcal · sem meta</span> }
-            } @else { <strong>—</strong><span>Aguardando cálculo</span> }
           </div>
-          @if (confetti().length) {
-            <div class="confetti" aria-hidden="true">
-              @for (piece of confetti(); track piece.id) {
-                <i [class.round]="piece.round" [style.background]="piece.color" [style.--x]="piece.x + 'px'" [style.--y]="piece.y + 'px'"
-                  [style.--r]="piece.rotate + 'deg'" [style.animation-delay]="piece.delay + 'ms'"></i>
+        </ng-template>
+
+        <div class="analysis-energy">
+          <ng-container *ngTemplateOutlet="metricRow; context: { $implicit: metricList[0] }" />
+        </div>
+        <div class="analysis-body">
+          <div class="analysis-donut">
+            <div class="donut-chart">
+              <svg viewBox="0 0 120 120" aria-hidden="true">
+                <!-- Outer ring: one light arc per macro target, filled by how much of the target was consumed. Inner donut: consumed distribution. -->
+                <circle class="donut-track outer" cx="60" cy="60" r="54" />
+                @if (donut.target; as slices) {
+                  @for (slice of slices; track slice.css) {
+                    @if (slice.share > 0) {
+                      <circle [class]="'donut-target ' + slice.css" cx="60" cy="60" r="54" pathLength="100"
+                        [attr.stroke-dasharray]="slice.dasharray" [attr.stroke-dashoffset]="slice.dashoffset" transform="rotate(-90 60 60)" />
+                      <circle [class]="'donut-loaded ' + slice.css" [class.exceeded]="slice.exceeded" [class.active]="highlightedMacro() === slice.css"
+                        cx="60" cy="60" r="54" pathLength="100"
+                        [attr.stroke-dasharray]="slice.loadedDasharray" [attr.stroke-dashoffset]="slice.dashoffset" transform="rotate(-90 60 60)"
+                        (mouseenter)="trackMacro(slice.css, $event)" (mousemove)="trackMacro(slice.css, $event)" (mouseleave)="clearMacro()" />
+                    }
+                  }
+                }
+                <circle class="donut-track inner" cx="60" cy="60" r="29" />
+                @if (donut.consumed; as slices) {
+                  @for (slice of slices; track slice.css) {
+                    @if (slice.share > 0) {
+                      <circle [class]="'donut-slice ' + slice.css" [class.active]="highlightedMacro() === slice.css" cx="60" cy="60" r="29" pathLength="100"
+                        [attr.stroke-dasharray]="slice.dasharray" [attr.stroke-dashoffset]="slice.dashoffset" transform="rotate(-90 60 60)"
+                        (mouseenter)="trackMacro(slice.css, $event)" (mousemove)="trackMacro(slice.css, $event)" (mouseleave)="clearMacro()" />
+                    }
+                  }
+                }
+              </svg>
+              @if (confetti().length) {
+                <div class="confetti" aria-hidden="true">
+                  @for (piece of confetti(); track piece.id) {
+                    <i [class.round]="piece.round" [style.background]="piece.color" [style.--x]="piece.x + 'px'" [style.--y]="piece.y + 'px'"
+                      [style.--r]="piece.rotate + 'deg'" [style.animation-delay]="piece.delay + 'ms'"></i>
+                  }
+                </div>
               }
             </div>
-          }
+            <ul class="donut-shares" aria-label="Distribuição da energia dos macronutrientes">
+              @for (slice of donut.consumed ?? []; track slice.css; let index = $index) {
+                <li [class]="slice.css" [attr.title]="donut.target ? 'Meta: ' + (donut.target[index].share | number:'1.0-0') + '%' : null">
+                  <span><i aria-hidden="true"></i>{{ slice.letter }}</span><strong>{{ slice.share | number:'1.0-0' }}%</strong>
+                </li>
+              } @empty {
+                <li class="empty">Sem macros</li>
+              }
+            </ul>
+            <!-- Description of the highlighted macro: consumed, share of the macro energy and comparison with its target. -->
+            @if (macroDetail; as detail) {
+              <div id="macro-tip" role="status" [class]="'macro-tip ' + detail.css" [class.following]="macroTipPosition() !== null"
+                [style.left.px]="macroTipPosition()?.x" [style.top.px]="macroTipPosition()?.y">
+                <strong>{{ detail.label }}</strong>
+                @if (detail.balance; as balance) {
+                  <span><em>Atual</em> {{ balance.consumed | number:'1.0-2' }} {{ detail.unit }}@if (detail.consumedShare !== null) { · {{ detail.consumedShare | number:'1.0-0' }}% da energia dos macros }</span>
+                  @if (balance.target !== null) {
+                    <span><em>Meta</em> {{ balance.target | number:'1.0-2' }} {{ detail.unit }}@if (detail.targetShare !== null) { · {{ detail.targetShare | number:'1.0-0' }}% }</span>
+                    <span>
+                      @if (detail.exceeded) { Acima da meta em {{ -balance.remaining! | number:'1.0-2' }} {{ detail.unit }} } @else { Restante {{ balance.remaining | number:'1.0-2' }} {{ detail.unit }} }
+                      @if (detail.percent !== null) { · {{ detail.percent }}% da meta }
+                    </span>
+                  } @else { <span>Sem meta definida</span> }
+                } @else { <span>Aguardando cálculo</span> }
+              </div>
+            }
+          </div>
+          <div class="analysis-macros">
+            @for (metric of metricList.slice(1); track metric.key) {
+              <ng-container *ngTemplateOutlet="metricRow; context: { $implicit: metric }" />
+            }
+          </div>
         </div>
-        <ul class="ring-legend">
-          @for (ring of ringList; track ring.key) {
-            <li [class]="'ring-legend-row ' + ring.css" [class.exceeded]="ring.exceeded">
-              <span class="legend-label"><span class="dot"></span>{{ ring.label }}</span>
-              @if (ring.balance; as balance) {
-                <span class="legend-values"><strong>{{ balance.consumed | number:'1.0-2' }}</strong>@if (balance.target !== null) { <span> / {{ balance.target | number:'1.0-2' }}</span> } {{ ring.unit }}</span>
-                <span class="legend-remaining">@if (balance.remaining !== null) { Restante {{ balance.remaining | number:'1.0-2' }} {{ ring.unit }}@if (ring.exceeded) { · acima da meta } } @else { Sem meta }</span>
-              } @else { <span class="legend-values muted">—</span> }
-            </li>
-          }
-        </ul>
         @if (result(); as response) {
           @if (response.totals.energyKcal.consumed > 0) {
             <div class="composition-target">
@@ -371,10 +528,10 @@
                   <div><button type="button" class="pill-button subtle" (click)="compositionTarget.set(null)">cancelar</button><button type="button" class="pill-button" (click)="applyCompositionTarget()">definir meta</button></div>
                 </div>
               } @else {
-                <button type="button" class="ring-action" (click)="defineCompositionAsTarget()" [disabled]="compositionTargetLoading() || calculating()">
+                <button type="button" class="summary-action" (click)="defineCompositionAsTarget()" [disabled]="compositionTargetLoading() || calculating()">
                   {{ compositionTargetLoading() ? 'Calculando…' : 'Definir composição como meta' }}
                 </button>
-                <p class="ring-action-note">A meta energética recebe o total do dia e os macros, os percentuais equivalentes.</p>
+                <p class="summary-action-note">A meta energética recebe o total do dia e os macros, os percentuais equivalentes.</p>
               }
               @if (compositionTargetErrors().length) { <div class="target-error" role="alert"><ul>@for (error of compositionTargetErrors(); track $index) { <li>{{ error }}</li> }</ul></div> }
             </div>
