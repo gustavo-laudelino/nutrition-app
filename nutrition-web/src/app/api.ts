@@ -37,14 +37,29 @@ export interface TargetResponse {
   targets: NutrientTargets;
 }
 export interface CompositionTargetResponse { prescribedEnergyKcal: number; carbohydratePercent: number; proteinPercent: number; fatPercent: number }
-export interface CalculationRequest { targets: NutrientTargets | null; meals: { name: string; foods: { foodId: number; quantityG: number | null }[] }[] }
+// Each meal has 1 to 5 options; only the first one counts toward the day (rule applied by the backend).
+export interface CalculationRequest { targets: NutrientTargets | null; referenceProfile?: ReferenceProfile; meals: { name: string; options: { foods: { foodId: number; quantityG: number | null }[] }[] }[] }
 export interface Nutrients { energyKcal: number; carbohydrateG: number; proteinG: number; fatG: number }
+export interface CalculatedFood { foodId: number; name: string; source: string; sourceCode: string | null; quantityG: number; nutrients: Nutrients }
 export interface Balance { target: number | null; consumed: number; remaining: number | null }
 export interface CalculationResponse {
-  meals: { name: string; totals: Nutrients; foods: { foodId: number; name: string; source: string; sourceCode: string | null; quantityG: number; nutrients: Nutrients }[] }[];
+  // Meal totals are option 1's; each option brings its own foods and totals.
+  meals: { name: string; totals: Nutrients; options: { foods: CalculatedFood[]; totals: Nutrients }[] }[];
   totals: { energyKcal: Balance; carbohydrateG: Balance; proteinG: Balance; fatG: Balance };
   // Day's macro distribution by energy (4/4/9), calculated by the backend; null without macros.
   macroEnergyShares: MacroEnergyShares | null;
+  // Day's fiber and micronutrients (option 1 of each meal) and the reference they are compared with (backend).
+  nutrients: DayNutrient[];
+  referenceSource: { name: string; profile: string } | null;
+}
+/** Selects the daily nutrient references (adults 19+); sent only with sex and age. */
+export interface ReferenceProfile { sex: 'FEMALE' | 'MALE'; age: number }
+export type NutrientCategory = 'FIBER' | 'LIPID' | 'MINERAL' | 'VITAMIN' | 'OTHER';
+export interface DayNutrient {
+  code: string; name: string; unit: string; category: NutrientCategory; inReport: boolean;
+  // null when no portion had data (NO_DATA); PARTIAL: foodsWithoutData foods had no value.
+  consumed: number | null; status: 'COMPLETE' | 'PARTIAL' | 'NO_DATA'; foodsWithoutData: number;
+  reference: { amount: number; type: 'RDA' | 'AI'; percent: number | null } | null;
 }
 export type PortionNutrient = 'ENERGY' | 'CARBOHYDRATE' | 'PROTEIN' | 'FAT';
 export interface PortionQuantityRequest { foodId: number; nutrient: PortionNutrient; amount: number }

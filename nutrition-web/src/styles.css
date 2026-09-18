@@ -476,3 +476,75 @@ button.meal-name-chip:hover{border-color:#9fbfae;background:#fbfdfb}
 /* Inside the nutritionist's sidebar layout the planning top bar drops its own brand (the sidebar shows it). */
 .app-frame.with-sidebar .topbar .brand{display:none}
 .app-frame.with-sidebar .topbar{padding-left:28px}
+
+/* Meal options as browser tabs: the open tab merges with the sheet below; × closes, + opens a copy. */
+.meal-panel{--sheet:#f6f7f5}
+.option-strip{display:flex;align-items:flex-end;gap:2px;margin:2px 0 0;padding:0 2px;min-width:0}
+.option-tabs{display:flex;align-items:flex-end;min-width:0}
+.option-tab{--tab-edge:transparent;position:relative;display:flex;align-items:center;gap:6px;height:34px;min-width:96px;max-width:170px;padding:0 6px 0 14px;border-radius:10px 10px 0 0;color:#5a665e;font-size:12px;font-weight:600;cursor:pointer;user-select:none;white-space:nowrap;outline:none;transition:background .15s,color .15s}
+.option-tab:hover:not(.active){background:rgba(255,255,255,.5);color:#34423a}
+.option-tab:focus-visible{box-shadow:inset 0 0 0 2px #6da58e}
+.option-tab.active{background:var(--sheet);color:#1f2a24;z-index:1}
+/* Concave bottom corners of the open tab, as in a browser. */
+.option-tab.active::before,.option-tab.active::after{content:"";position:absolute;bottom:0;width:10px;height:10px;pointer-events:none}
+.option-tab.active::before{left:-10px;background:radial-gradient(circle at 0 0,transparent 9.5px,var(--sheet) 10px)}
+.option-tab.active::after{right:-10px;background:radial-gradient(circle at 100% 0,transparent 9.5px,var(--sheet) 10px)}
+/* Separators between closed tabs, hidden next to the open one and on hover. */
+.option-tab:not(.active)+.option-tab:not(.active)::before{content:"";position:absolute;left:0;top:9px;bottom:9px;border-left:1px solid #c3cbc5}
+.option-tab:hover+.option-tab::before,.option-tab.cdk-drag-placeholder+.option-tab::before{display:none}
+.option-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.option-goal{flex:none;width:7px;height:7px;border-radius:50%;background:var(--energy);box-shadow:0 0 0 2px rgba(63,125,98,.18)}
+.option-close{flex:none;display:grid;place-items:center;width:20px;height:20px;padding:0;border:0;border-radius:50%;background:transparent;color:#7d887f;font-size:15px;line-height:1}
+.option-close:hover{background:rgba(52,66,58,.12);color:#1f2a24}
+.option-tab:not(.active):not(:hover) .option-close{opacity:.55}
+.option-add{flex:none;display:grid;place-items:center;width:28px;height:28px;margin:0 0 3px 6px;padding:0;border:0;border-radius:50%;background:transparent;color:#4f5c53;font-size:19px;line-height:1}
+.option-add:hover:not(:disabled){background:rgba(255,255,255,.6)}
+.option-actions{display:flex;align-items:center;gap:4px;margin:0 0 4px auto;padding-left:8px}
+.option-actions .text-button{font-size:12px}
+.option-tab.cdk-drag-preview{background:var(--sheet);border-radius:10px;box-shadow:0 6px 18px #1c2b2230;color:#1f2a24}
+.option-tab.cdk-drag-placeholder{opacity:.35}
+.option-tabs.cdk-drop-list-dragging .option-tab:not(.cdk-drag-placeholder){transition:transform .2s cubic-bezier(0,0,.2,1)}
+.option-sheet{display:grid;gap:8px;margin:0 -4px;padding:10px 4px 12px;background:var(--sheet);border-radius:12px}
+.option-sheet.first-open{border-top-left-radius:0}
+.option-sheet .meal-chip:not(.quantity-chip):not(.food-name-chip){background:#fff}
+.text-button.danger{color:#a94436}
+.option-totals{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-left:24px;padding:6px 10px;border-radius:8px;background:#eef1ed;font-size:12px;color:var(--muted)}
+.option-totals .meal-chip{height:28px}
+.option-totals em{font-style:normal;font-size:11px;color:#8a6a2c;margin-left:auto}
+.option-panel{display:grid;gap:8px}
+.meal-name-chip .meal-options-count,.meal-panel .meal-name-chip .meal-options-count{display:inline;flex:none;font-size:11px;font-weight:600;color:#3f7d62;background:rgba(63,125,98,.1);border-radius:999px;padding:2px 8px}
+.meal-name-chip{gap:8px}
+.meal-body .meal-confirmation{margin:0 0 0 24px}
+@media(max-width:900px){.option-totals,.meal-body .meal-confirmation{margin-left:0}.option-tab{min-width:0;padding-left:10px}.option-actions{display:none}}
+
+/* Fiber (analysis card) and the day's micronutrient report below it. */
+:root{--fiber:#2a9d8f;--fiber-soft:#dcf1ee;--fiber-strong:#1b6d63;--fiber-text:#1f7a6f}
+.analysis-card .fiber{--metric:var(--fiber);--metric-soft:var(--fiber-soft);--metric-strong:var(--fiber-strong);--metric-text:var(--fiber-text)}
+.analysis-card .fiber .analysis-label svg{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.partial-mark{color:#a06b12;font-weight:700;cursor:help;margin-left:2px}
+.summary-column{display:grid;gap:16px;align-content:start;min-width:0}
+@media(min-width:861px){
+  .summary-column{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+  .summary-column .analysis-card{position:static}
+}
+@media(max-width:860px){.summary-column{order:-1}}
+.nutrient-report{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px 20px 14px;box-shadow:0 1px 2px #223f3108}
+.report-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.report-heading h2{font-size:13px}
+.report-toggle{background:#eceeeb;color:#3f4d44}
+.report-toggle:hover{background:#e0e4df}
+.nutrient-report h3{margin:14px 0 6px;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
+.report-list{list-style:none;margin:0;padding:0;display:grid;gap:9px}
+.report-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;align-items:baseline;font-size:12px;color:#34423a}
+.report-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.report-value{font-size:11px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.report-value strong{font-size:12px;color:#34423a;font-weight:650}
+.report-value small{margin-left:3px;font-size:10px}
+.report-row.no-data .report-value strong{color:var(--muted)}
+.report-bar{grid-column:1/-1;position:relative;display:block;height:6px;border-radius:999px;background:#eef1ee}
+.report-fill{display:block;height:100%;width:calc(var(--fill,0) * 100%);border-radius:inherit;background:var(--energy);transition:width .6s ease}
+.report-bar.over .report-fill{background:var(--energy-strong)}
+.report-reference{position:absolute;top:-3px;bottom:-3px;left:calc(var(--at,.5) * 100%);border-left:1.5px dashed #6f7a73}
+.report-over{position:absolute;right:-2px;top:50%;transform:translate(100%,-50%);font-size:12px;line-height:1;color:var(--energy-strong);font-weight:700}
+.report-empty{margin:10px 0 0;font-size:12px;color:var(--muted)}
+.report-source{margin:14px 0 0;padding-top:10px;border-top:1px solid var(--line);font-size:10px;line-height:1.6;color:var(--muted)}

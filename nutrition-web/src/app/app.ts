@@ -6,18 +6,23 @@ import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Subscription, debounceTime, distinctUntilChanged, timer } from 'rxjs';
-import { CalculationResponse, CompositionTargetResponse, DriActivity, PortionNutrient, EstimateMethod, EstimateRequest, EstimateResponse, Food, FoodPage, MacroMethod, NutritionApi, PatientGoal, Sex, TargetRequest, TargetResponse } from './api';
+import { CalculatedFood, CalculationRequest, CalculationResponse, DayNutrient, CompositionTargetResponse, DriActivity, PortionNutrient, EstimateMethod, EstimateRequest, EstimateResponse, Food, FoodPage, MacroMethod, NutritionApi, PatientGoal, Sex, TargetRequest, TargetResponse } from './api';
 import { apiErrors, ApiErrors, NO_ERRORS } from './api-errors';
 import { Session } from './auth/session';
 import { Patient, PatientsApi } from './patients/patients-api';
 
 // savedName is the last non-blank name, sent while the input is temporarily empty.
 // time is a screen-only planning aid ("HH:mm" or empty); it is not sent to the calculation API.
-interface Meal { key: number; time: string; name: string; savedName: string; foods: Portion[] }
+// options: 1 to 5 menu alternatives; only the first counts toward the day. activeOptionKey is the one on screen.
+interface Meal { key: number; time: string; name: string; savedName: string; options: MealOption[]; activeOptionKey: number }
+interface MealOption { key: number; foods: Portion[] }
 interface Portion { key: number; food: Food; quantityG: number | null }
 type CalculatedMeal = CalculationResponse['meals'][number];
+type CalculatedOption = Omit<CalculatedMeal['options'][number], 'foods'> & { foods: (CalculatedFood | null)[] };
 // Server result aligned with the meals on screen: a portion left out of the request is null.
-type DayResult = Omit<CalculationResponse, 'meals'> & { meals: (Omit<CalculatedMeal, 'foods'> & { foods: (CalculatedMeal['foods'][number] | null)[] })[] };
+type DayResult = Omit<CalculationResponse, 'meals'> & { meals: (Omit<CalculatedMeal, 'options'> & { options: CalculatedOption[] })[] };
+const MAX_MEAL_OPTIONS = 5;
+const PORTION_QUANTITY_FIELD = /^meals\[(\d+)\]\.options\[(\d+)\]\.foods\[(\d+)\]\.quantityG$/;
 interface ConfettiPiece { id: number; x: number; y: number; rotate: number; delay: number; color: string; round: boolean }
 /** "7" → 07:00, "730" → 07:30, "0730" → 07:30; out of 00:00–23:59 → empty. */
 export function normalizeTime(value: string): string {
@@ -48,13 +53,31 @@ function donutSlices(shares: number[]) {
 }
 function sameKcal(value: number | null, expected: number) { return value !== null && Math.abs(value - expected) < 0.01; }
 function alignResult(response: CalculationResponse, meals: Meal[], excluded: ReadonlyMap<number, string>): DayResult {
-  if (!meals.some(meal => meal.foods.some(item => excluded.has(item.key)))) return response;
-  return { ...response, meals: response.meals.map((calculated, index) => {
-    const foods = [...calculated.foods];
-    return { ...calculated, foods: (meals[index]?.foods ?? []).map(item => excluded.has(item.key) ? null : foods.shift() ?? null) };
-  }) };
+  if (!meals.some(meal => meal.options.some(option => option.foods.some(item => excluded.has(item.key))))) return response;
+  return { ...response, meals: response.meals.map((calculated, mealIndex) => ({ ...calculated,
+    options: calculated.options.map((option, optionIndex) => {
+      const foods = [...option.foods];
+      const portions = meals[mealIndex]?.options[optionIndex]?.foods ?? [];
+      return { ...option, foods: portions.map(item => excluded.has(item.key) ? null : foods.shift() ?? null) };
+    }) })) };
+}
+/** Changes one meal's options in the result, keeping it aligned with the screen until the recalculation arrives. */
+function withMealResult(result: DayResult | null, mealIndex: number, change: (options: CalculatedOption[]) => CalculatedOption[]): DayResult | null {
+  const meal = result?.meals[mealIndex];
+  if (!result || !meal) return result;
+  const meals = [...result.meals];
+  meals[mealIndex] = { ...meal, options: change([...meal.options]) };
+  return { ...result, meals };
 }
 type Panel = 'patient' | 'estimate' | 'prescription' | 'macros';
+// Micronutrient report groups, in display order; items keep the backend order.
+const REPORT_GROUPS = [
+  { category: 'MINERAL', label: 'Minerais' },
+  { category: 'VITAMIN', label: 'Vitaminas' },
+  { category: 'LIPID', label: 'Lipídios' },
+] as const;
+// Report bars span 0–200% of the reference, so the reference line sits in the middle.
+const REPORT_SCALE_PERCENT = 200;
 // Nutrients a portion can be sized by, in the food row's column order.
 const PORTION_NUTRIENTS = [
   { key: 'CARBOHYDRATE', field: 'carbohydrateG', css: 'macro carb', label: 'Carboidratos', noun: 'carboidrato', unit: 'g', format: '1.0-1' },
@@ -107,6 +130,8 @@ export class AppComponent implements OnInit, OnDestroy {
   private celebrationTimers: ReturnType<typeof setTimeout>[] = [];
   private celebrationFrame?: number;
   readonly pendingMealRemoval = signal<number | null>(null);
+  readonly pendingOptionRemoval = signal<{ mealKey: number; optionKey: number } | null>(null);
+  readonly maxMealOptions = MAX_MEAL_OPTIONS;
   readonly mealShortcuts = ['Café da manhã', 'Lanche da manhã', 'Almoço', 'Lanche da tarde', 'Jantar', 'Ceia'];
   newMealName = '';
   readonly result = signal<DayResult | null>(null);
@@ -207,6 +232,28 @@ export class AppComponent implements OnInit, OnDestroy {
         })
         : null,
     };
+  }
+  // Fiber from the backend nutrients (absent with an older API): bar capped at the reference, as the macro bars.
+  get fiber() {
+    const fiber = (this.result()?.nutrients ?? []).find(item => item.code === 'FIBER') ?? null;
+    return fiber && { ...fiber, progress: Math.min((fiber.reference?.percent ?? 0) / 100, 1) };
+  }
+  // Day's micronutrient report: only drawing positions here; sums, references and percentages come from the backend.
+  readonly reportExpanded = signal(true);
+  get nutrientReport() {
+    const nutrients = (this.result()?.nutrients ?? []).filter(item => item.inReport);
+    return REPORT_GROUPS.map(group => ({ ...group, items: nutrients.filter(item => item.category === group.category).map(item => this.reportItem(item)) }))
+      .filter(group => group.items.length);
+  }
+  private reportItem(item: DayNutrient) {
+    const percent = item.reference?.percent ?? null;
+    return { ...item, fill: percent === null ? 0 : Math.min(percent, REPORT_SCALE_PERCENT) / REPORT_SCALE_PERCENT,
+      over: percent !== null && percent > REPORT_SCALE_PERCENT, referenceAt: 100 / REPORT_SCALE_PERCENT };
+  }
+  /** Sex and age of the planning profile (typed or from the register) select the references; otherwise none is sent. */
+  private referenceProfile(): CalculationRequest['referenceProfile'] {
+    const { sex, age } = this.form.controls.patient.getRawValue();
+    return sex !== 'UNSPECIFIED' && age !== null ? { sex, age } : undefined;
   }
   get macroSummary() {
     const macros = this.targets()?.macros;
@@ -383,7 +430,11 @@ export class AppComponent implements OnInit, OnDestroy {
     }));
     this.formChanges.add(this.form.controls.estimation.valueChanges.subscribe(() => this.scheduleEstimate()));
     let previousWeight = this.form.controls.patient.controls.weightKg.value;
+    let previousProfile = JSON.stringify(this.referenceProfile() ?? null);
     this.formChanges.add(this.form.controls.patient.valueChanges.subscribe(() => {
+      // The nutrient references depend on sex and age: recalculate the day when they change.
+      const profile = JSON.stringify(this.referenceProfile() ?? null);
+      if (profile !== previousProfile) { previousProfile = profile; this.calculate(); }
       const weight = this.form.controls.patient.controls.weightKg.value;
       const weightChanged = weight !== previousWeight;
       previousWeight = weight;
@@ -520,7 +571,8 @@ export class AppComponent implements OnInit, OnDestroy {
     const trimmed = name.trim();
     if (!trimmed) return;
     const key = this.nextKey++;
-    this.meals.update(meals => [...meals, { key, time: '', name: trimmed, savedName: trimmed, foods: [] }]);
+    const optionKey = this.nextKey++;
+    this.meals.update(meals => [...meals, { key, time: '', name: trimmed, savedName: trimmed, options: [{ key: optionKey, foods: [] }], activeOptionKey: optionKey }]);
     this.setMealExpanded(key, true);
     this.newMealName = '';
     this.openFoodSearch(key);
@@ -582,12 +634,12 @@ export class AppComponent implements OnInit, OnDestroy {
   requestRemoveMeal(key: number) {
     const meal = this.meals().find(item => item.key === key);
     if (!meal) return;
-    if (meal.foods.length) this.pendingMealRemoval.set(key);
+    if (meal.options.some(option => option.foods.length)) this.pendingMealRemoval.set(key);
     else this.removeMeal(key);
   }
   removeMeal(key: number) {
     const index = this.meals().findIndex(meal => meal.key === key);
-    this.forgetInvalidPortions(this.meals()[index]?.foods.map(item => item.key) ?? []);
+    this.forgetInvalidPortions(this.meals()[index]?.options.flatMap(option => option.foods.map(item => item.key)) ?? []);
     this.meals.update(meals => meals.filter(meal => meal.key !== key));
     const result = this.result();
     if (result && index >= 0 && index < result.meals.length) this.result.set({ ...result, meals: result.meals.filter((_, i) => i !== index) });
@@ -622,13 +674,16 @@ export class AppComponent implements OnInit, OnDestroy {
   addFood(food: Food) {
     const mealKey = this.foodSearchMealKey();
     if (mealKey === null) return;
+    // Added to the option on screen.
     this.meals.update(meals => meals.map(item => item.key === mealKey
-      ? { ...item, foods: [...item.foods, { key: this.nextKey++, food, quantityG: 100 }] } : item));
+      ? { ...item, options: item.options.map(option => option.key === item.activeOptionKey
+        ? { ...option, foods: [...option.foods, { key: this.nextKey++, food, quantityG: 100 }] } : option) } : item));
     this.closeFoodSearch();
     this.calculate();
   }
   changeQuantity(mealKey: number, key: number, quantityG: number | null, input?: HTMLInputElement) {
-    const portion = this.meals().find(meal => meal.key === mealKey)?.foods.find(item => item.key === key);
+    // Portion keys are unique on the whole screen: the portion is found in whichever option holds it.
+    const portion = this.meals().find(meal => meal.key === mealKey)?.options.flatMap(option => option.foods).find(item => item.key === key);
     if (!portion) return;
     // Empty or unreadable input: the last quantity comes back and nothing is sent.
     if (quantityG === null) {
@@ -637,7 +692,7 @@ export class AppComponent implements OnInit, OnDestroy {
     }
     this.forgetInvalidPortions([key]);
     this.meals.update(meals => meals.map(meal => meal.key === mealKey
-      ? { ...meal, foods: meal.foods.map(item => item.key === key ? { ...item, quantityG } : item) } : meal));
+      ? { ...meal, options: meal.options.map(option => ({ ...option, foods: option.foods.map(item => item.key === key ? { ...item, quantityG } : item) })) } : meal));
     this.calculate();
   }
   /** Only a presence check on the catalog value per 100 g; the weight itself comes from the backend. */
@@ -679,16 +734,94 @@ export class AppComponent implements OnInit, OnDestroy {
   removeFood(mealKey: number, key: number) {
     this.forgetInvalidPortions([key]);
     const mealIndex = this.meals().findIndex(meal => meal.key === mealKey);
-    const foodIndex = this.meals()[mealIndex]?.foods.findIndex(item => item.key === key) ?? -1;
+    const options = this.meals()[mealIndex]?.options ?? [];
+    const optionIndex = options.findIndex(option => option.foods.some(item => item.key === key));
+    if (optionIndex < 0) return;
+    const foodIndex = options[optionIndex].foods.findIndex(item => item.key === key);
     this.meals.update(meals => meals.map(meal => meal.key === mealKey
-      ? { ...meal, foods: meal.foods.filter(item => item.key !== key) } : meal));
-    const result = this.result();
-    const calculatedMeal = result?.meals[mealIndex];
-    if (result && calculatedMeal && foodIndex >= 0) {
-      const meals = [...result.meals];
-      meals[mealIndex] = { ...calculatedMeal, foods: calculatedMeal.foods.filter((_, i) => i !== foodIndex) };
-      this.result.set({ ...result, meals });
-    }
+      ? { ...meal, options: meal.options.map(option => ({ ...option, foods: option.foods.filter(item => item.key !== key) })) } : meal));
+    this.result.set(withMealResult(this.result(), mealIndex, calculated => {
+      const option = calculated[optionIndex];
+      if (option) calculated[optionIndex] = { ...option, foods: option.foods.filter((_, i) => i !== foodIndex) };
+      return calculated;
+    }));
+    this.calculate();
+  }
+  // Meal options: the tabs show one option at a time; only option 1 counts toward the day (backend rule).
+  activeOption(meal: Meal) { return meal.options.find(option => option.key === meal.activeOptionKey) ?? meal.options[0]; }
+  activeOptionIndex(meal: Meal) { return Math.max(meal.options.findIndex(option => option.key === meal.activeOptionKey), 0); }
+  selectOption(mealKey: number, optionKey: number) {
+    this.pendingOptionRemoval.set(null);
+    this.meals.update(meals => meals.map(meal => meal.key === mealKey ? { ...meal, activeOptionKey: optionKey } : meal));
+  }
+  /** Left/right arrows move between the tabs and focus the new one. */
+  stepOption(meal: Meal, direction: -1 | 1) {
+    const count = meal.options.length;
+    const next = meal.options[(this.activeOptionIndex(meal) + direction + count) % count];
+    this.selectOption(meal.key, next.key);
+    setTimeout(() => document.getElementById('option-tab-' + next.key)?.focus());
+  }
+  /** "+" copies the option on screen (same foods and quantities, new portions) and opens the copy. */
+  addOption(mealKey: number) {
+    const meal = this.meals().find(item => item.key === mealKey);
+    if (!meal || meal.options.length >= MAX_MEAL_OPTIONS) return;
+    this.pendingOptionRemoval.set(null);
+    const invalid = new Map(this.invalidPortions());
+    const foods = this.activeOption(meal).foods.map(item => {
+      const copy = { ...item, key: this.nextKey++ };
+      const message = invalid.get(item.key);
+      if (message !== undefined) invalid.set(copy.key, message);
+      return copy;
+    });
+    const option = { key: this.nextKey++, foods };
+    if (invalid.size !== this.invalidPortions().size) this.invalidPortions.set(invalid);
+    this.meals.update(meals => meals.map(item => item.key === mealKey ? { ...item, options: [...item.options, option], activeOptionKey: option.key } : item));
+    this.calculate();
+  }
+  /** Moves the option to the first position (it starts counting toward the day); the others keep their order. */
+  makeFirstOption(mealKey: number, optionKey: number) {
+    const from = this.meals().find(meal => meal.key === mealKey)?.options.findIndex(option => option.key === optionKey) ?? -1;
+    this.moveOption(mealKey, from, 0);
+  }
+  /** Dragging a tab reorders the options, like browser tabs; whichever lands first counts toward the day. */
+  dropOption(mealKey: number, event: CdkDragDrop<unknown>) {
+    this.moveOption(mealKey, event.previousIndex, event.currentIndex);
+  }
+  private moveOption(mealKey: number, from: number, to: number) {
+    const mealIndex = this.meals().findIndex(meal => meal.key === mealKey);
+    const count = this.meals()[mealIndex]?.options.length ?? 0;
+    if (from === to || from < 0 || to < 0 || from >= count || to >= count) return;
+    this.pendingOptionRemoval.set(null);
+    this.meals.update(meals => meals.map(meal => {
+      if (meal.key !== mealKey) return meal;
+      const options = [...meal.options];
+      moveItemInArray(options, from, to);
+      return { ...meal, options };
+    }));
+    this.result.set(withMealResult(this.result(), mealIndex, options => { moveItemInArray(options, from, to); return options; }));
+    this.calculate();
+  }
+  /** Closing a tab: an empty option closes at once; one with foods is opened and asks for confirmation. */
+  requestRemoveOption(mealKey: number, optionKey: number) {
+    const meal = this.meals().find(item => item.key === mealKey);
+    const option = meal?.options.find(item => item.key === optionKey);
+    if (!meal || !option || meal.options.length <= 1) return;
+    if (!option.foods.length) { this.removeOption(mealKey, optionKey); return; }
+    this.selectOption(mealKey, optionKey);
+    this.pendingOptionRemoval.set({ mealKey, optionKey });
+  }
+  /** Any option can go except the only one; when option 1 goes, the next one starts counting. */
+  removeOption(mealKey: number, optionKey: number) {
+    this.pendingOptionRemoval.set(null);
+    const mealIndex = this.meals().findIndex(meal => meal.key === mealKey);
+    const meal = this.meals()[mealIndex];
+    const index = meal?.options.findIndex(option => option.key === optionKey) ?? -1;
+    if (!meal || index < 0 || meal.options.length <= 1) return;
+    this.forgetInvalidPortions(meal.options[index].foods.map(item => item.key));
+    const options = meal.options.filter(option => option.key !== optionKey);
+    const activeOptionKey = meal.activeOptionKey === optionKey ? options[Math.min(index, options.length - 1)].key : meal.activeOptionKey;
+    this.meals.update(meals => meals.map(item => item.key === mealKey ? { ...item, options, activeOptionKey } : item));
+    this.result.set(withMealResult(this.result(), mealIndex, calculated => calculated.filter((_, i) => i !== index)));
     this.calculate();
   }
   // Cancels the running calculation; the last result stays visible until the new one arrives.
@@ -752,9 +885,13 @@ export class AppComponent implements OnInit, OnDestroy {
     this.calculationDelay?.unsubscribe(); this.invalidate(); this.calculating.set(true);
     const meals = this.meals();
     const invalid = this.invalidPortions();
-    const sent = meals.map(meal => meal.foods.filter(item => !invalid.has(item.key)));
-    this.calculationRequest = this.api.calculate({ targets: this.targets()?.targets ?? null,
-      meals: meals.map((meal, index) => ({ name: meal.name.trim() || meal.savedName, foods: sent[index].map(item => ({ foodId: item.food.id, quantityG: item.quantityG })) })) }).subscribe({
+    const sent = meals.map(meal => meal.options.map(option => option.foods.filter(item => !invalid.has(item.key))));
+    const request: CalculationRequest = { targets: this.targets()?.targets ?? null, meals: [] };
+    const referenceProfile = this.referenceProfile();
+    if (referenceProfile) request.referenceProfile = referenceProfile;
+    this.calculationRequest = this.api.calculate({ ...request,
+      meals: meals.map((meal, index) => ({ name: meal.name.trim() || meal.savedName,
+        options: sent[index].map(foods => ({ foods: foods.map(item => ({ foodId: item.food.id, quantityG: item.quantityG })) })) })) }).subscribe({
       next: response => {
         const result = alignResult(response, meals, invalid);
         this.result.set(result); this.calculating.set(false);
@@ -772,12 +909,12 @@ export class AppComponent implements OnInit, OnDestroy {
       },
     });
   }
-  private rejectedPortions(error: HttpErrorResponse, sent: Portion[][]): Map<number, string> {
+  private rejectedPortions(error: HttpErrorResponse, sent: Portion[][][]): Map<number, string> {
     const rejected = new Map<number, string>();
     const items: { field: string; message: string }[] = error.status === 400 && Array.isArray(error.error?.errors) ? error.error.errors : [];
     for (const item of items) {
-      const match = /^meals\[(\d+)\]\.foods\[(\d+)\]\.quantityG$/.exec(item.field);
-      const portion = match ? sent[Number(match[1])]?.[Number(match[2])] : undefined;
+      const match = PORTION_QUANTITY_FIELD.exec(item.field);
+      const portion = match ? sent[Number(match[1])]?.[Number(match[2])]?.[Number(match[3])] : undefined;
       if (!portion) return new Map(); // any other error blocks the whole calculation
       rejected.set(portion.key, item.message);
     }
@@ -791,9 +928,11 @@ export class AppComponent implements OnInit, OnDestroy {
         'prescribedEnergyKcal': 'Meta prescrita', 'kcalPerKg': 'Fator kcal/kg', 'patient.driActivity': 'Atividade DRI', 'faoPal': 'PAL FAO', 'patient.heightCm': 'Altura',
         'macros': 'Metas de macros', 'macros.method': 'Método de macros', 'macros.carbohydrate': 'Carboidrato', 'macros.protein': 'Proteína', 'macros.fat': 'Gordura' };
       return problem.errors.map((item: {field:string;message:string}) => {
-        const portion = /^meals\[(\d+)\]\.foods\[(\d+)\]\.quantityG$/.exec(item.field);
+        const portion = PORTION_QUANTITY_FIELD.exec(item.field);
         const mealName = /^meals\[(\d+)\]\.name$/.exec(item.field);
-        return `${labels[item.field] ?? (portion ? `Refeição ${Number(portion[1]) + 1}, quantidade da porção ${Number(portion[2]) + 1}` : mealName ? `Nome da refeição ${Number(mealName[1]) + 1}` : item.field)}: ${item.message}`;
+        const mealOptions = /^meals\[(\d+)\]\.options$/.exec(item.field);
+        return `${labels[item.field] ?? (portion ? `Refeição ${Number(portion[1]) + 1}, opção ${Number(portion[2]) + 1}, quantidade da porção ${Number(portion[3]) + 1}`
+          : mealName ? `Nome da refeição ${Number(mealName[1]) + 1}` : mealOptions ? `Opções da refeição ${Number(mealOptions[1]) + 1}` : item.field)}: ${item.message}`;
       });
     }
     return [typeof problem?.detail === 'string' ? problem.detail : 'Não foi possível concluir a solicitação. Tente novamente.'];

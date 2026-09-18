@@ -8,21 +8,22 @@ import { provideRouter } from '@angular/router';
 import { AppComponent, normalizeTime } from './app';
 import { Session } from './auth/session';
 import { Patient } from './patients/patients-api';
-import { CalculationResponse, EstimateResponse, Food, TargetResponse } from './api';
+import { CalculationResponse, DayNutrient, EstimateResponse, Food, TargetResponse } from './api';
 
 registerLocaleData(localePt);
 
 const food: Food = { id:42,name:'Alimento de teste',source:'TEST',sourceCode:'42',energyKcal:100,carbohydrateG:20,proteinG:4,fatG:1 };
 const balance = { target:null,consumed:777,remaining:null };
-const response: CalculationResponse = { meals:[], totals:{energyKcal:balance,carbohydrateG:balance,proteinG:balance,fatG:balance}, macroEnergyShares:null };
+const response: CalculationResponse = { meals:[], totals:{energyKcal:balance,carbohydrateG:balance,proteinG:balance,fatG:balance}, macroEnergyShares:null, nutrients:[], referenceSource:null };
 const estimate: EstimateResponse = { method:'DRI_2023',estimatedKcal:2437,basalKcal:null,driActivity:'ACTIVE',faoPal:null,faoActivity:null };
 const definition: TargetResponse = {
   prescription:{energyKcal:2000,referenceEstimateKcal:2437,differenceKcal:-437},
   macros:{method:'NONE',carbohydrate:null,protein:null,fat:null},
   targets:{energyKcal:2000,carbohydrateG:null,proteinG:null,fatG:null},
 };
-const mealResponse: CalculationResponse = { ...response,meals:[{name:'Almoço',totals:{energyKcal:123,carbohydrateG:45,proteinG:6,fatG:7},foods:[{foodId:42,name:food.name,source:food.source,sourceCode:food.sourceCode,quantityG:100,
-  nutrients:{energyKcal:100,carbohydrateG:20,proteinG:4,fatG:1}}]}] };
+const mealTotals = {energyKcal:123,carbohydrateG:45,proteinG:6,fatG:7};
+const mealResponse: CalculationResponse = { ...response,meals:[{name:'Almoço',totals:mealTotals,options:[{totals:mealTotals,foods:[{foodId:42,name:food.name,source:food.source,sourceCode:food.sourceCode,quantityG:100,
+  nutrients:{energyKcal:100,carbohydrateG:20,proteinG:4,fatG:1}}]}]}] };
 describe('Estimate, professional prescription and independent composition', () => {
   let fixture: ComponentFixture<AppComponent>; let app: AppComponent; let http: HttpTestingController;
   beforeEach(async () => {
@@ -46,11 +47,11 @@ describe('Estimate, professional prescription and independent composition', () =
     expect(fixture.nativeElement.querySelector('.meals-empty').textContent).toContain('Comece');
     const shortcuts:HTMLButtonElement[]=Array.from(fixture.nativeElement.querySelectorAll('.meal-shortcuts button'));
     expect(shortcuts).toHaveLength(6);shortcuts[0].click();
-    expect(http.expectOne('/api/diet-calculations').request.body.meals).toEqual([{name:'Café da manhã',foods:[]}]);
+    expect(http.expectOne('/api/diet-calculations').request.body.meals).toEqual([{name:'Café da manhã',options:[{foods:[]}]}]);
     const input:HTMLInputElement=fixture.nativeElement.querySelector('#new-meal-name');
     input.value='Pré-treino';input.dispatchEvent(new Event('input'));
     fixture.nativeElement.querySelector('.new-meal').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
-    expect(http.expectOne('/api/diet-calculations').request.body.meals).toEqual([{name:'Café da manhã',foods:[]},{name:'Pré-treino',foods:[]}]);
+    expect(http.expectOne('/api/diet-calculations').request.body.meals).toEqual([{name:'Café da manhã',options:[{foods:[]}]},{name:'Pré-treino',options:[{foods:[]}]}]);
   });
   it('adds food only to the meal whose search is open',()=>{
     app.addFood(food);http.expectNone('/api/diet-calculations');
@@ -61,17 +62,17 @@ describe('Estimate, professional prescription and independent composition', () =
     expect(fixture.nativeElement.querySelectorAll('.meal-panel')[1].querySelector('.meal-food-search')).not.toBeNull();
     app.openFoodSearch(first);app.addFood(food);
     expect(http.expectOne('/api/diet-calculations').request.body.meals).toEqual([
-      {name:'A',foods:[{foodId:42,quantityG:100}]},{name:'B',foods:[]}]);
+      {name:'A',options:[{foods:[{foodId:42,quantityG:100}]}]},{name:'B',options:[{foods:[]}]}]);
     expect(app.foodSearchMealKey()).toBeNull();
     fixture.detectChanges();expect(fixture.nativeElement.querySelector('.meal-food-search')).toBeNull();
   });
   it('reorders meals from the drag handle with the keyboard and keeps server totals aligned',()=>{
     createMeal();app.addFood(food);
-    http.expectOne('/api/diet-calculations').flush({...response,meals:[{name:'Almoço',totals:{energyKcal:111,carbohydrateG:0,proteinG:0,fatG:0},foods:[]}]});
+    http.expectOne('/api/diet-calculations').flush({...response,meals:[{name:'Almoço',totals:{energyKcal:111,carbohydrateG:0,proteinG:0,fatG:0},options:[{foods:[],totals:{energyKcal:111,carbohydrateG:0,proteinG:0,fatG:0}}]}]});
     app.addMeal('Jantar');
     http.expectOne('/api/diet-calculations').flush({...response,meals:[
-      {name:'Almoço',totals:{energyKcal:111,carbohydrateG:0,proteinG:0,fatG:0},foods:[]},
-      {name:'Jantar',totals:{energyKcal:222,carbohydrateG:0,proteinG:0,fatG:0},foods:[]}]});
+      {name:'Almoço',totals:{energyKcal:111,carbohydrateG:0,proteinG:0,fatG:0},options:[{foods:[],totals:{energyKcal:111,carbohydrateG:0,proteinG:0,fatG:0}}]},
+      {name:'Jantar',totals:{energyKcal:222,carbohydrateG:0,proteinG:0,fatG:0},options:[{foods:[],totals:{energyKcal:222,carbohydrateG:0,proteinG:0,fatG:0}}]}]});
     fixture.detectChanges();
     const handle:HTMLButtonElement=fixture.nativeElement.querySelectorAll('.meal-drag-handle')[1];
     handle.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp'}));
@@ -83,7 +84,7 @@ describe('Estimate, professional prescription and independent composition', () =
   it('reorders meals on drop and keeps the previous server totals with their meals',()=>{
     for (const name of ['A','B','C']) { app.addMeal(name);flushComposition(); }
     const totals=(energyKcal:number)=>({energyKcal,carbohydrateG:0,proteinG:0,fatG:0});
-    app.result.set({...response,meals:[{name:'A',totals:totals(1),foods:[]},{name:'B',totals:totals(2),foods:[]},{name:'C',totals:totals(3),foods:[]}]});
+    app.result.set({...response,meals:[{name:'A',totals:totals(1),options:[{foods:[],totals:totals(1)}]},{name:'B',totals:totals(2),options:[{foods:[],totals:totals(2)}]},{name:'C',totals:totals(3),options:[{foods:[],totals:totals(3)}]}]});
 
     app.dropMeal({previousIndex:2,currentIndex:0} as never);
     expect(app.meals().map(meal=>meal.name)).toEqual(['C','A','B']);
@@ -129,7 +130,7 @@ describe('Estimate, professional prescription and independent composition', () =
     time.value='0730';time.dispatchEvent(new Event('input'));expect(time.value).toBe('07:30');expect(app.meals()[0].time).toBe('07:30');
     time.value='7';time.dispatchEvent(new Event('input'));time.dispatchEvent(new Event('blur'));expect(app.meals()[0].time).toBe('07:00');
     http.expectNone('/api/diet-calculations');
-    app.calculate();expect(http.expectOne('/api/diet-calculations').request.body.meals[0]).toEqual({name:'Almoço',foods:[]});
+    app.calculate();expect(http.expectOne('/api/diet-calculations').request.body.meals[0]).toEqual({name:'Almoço',options:[{foods:[]}]});
     const toggle:HTMLButtonElement=summary.querySelector('.meal-toggle');
     expect(toggle.textContent?.trim()).toBe('0 itens');expect(toggle.getAttribute('aria-label')).toContain('Almoço');
   });
@@ -219,7 +220,7 @@ describe('Estimate, professional prescription and independent composition', () =
     expect(app.meals()).toHaveLength(2);expect(app.pendingMealRemoval()).toBeNull();
     app.requestRemoveMeal(first);fixture.detectChanges();
     fixture.nativeElement.querySelectorAll('[role="alertdialog"] button')[1].click();
-    expect(http.expectOne('/api/diet-calculations').request.body.meals).toEqual([{name:'Ceia',foods:[]}]);
+    expect(http.expectOne('/api/diet-calculations').request.body.meals).toEqual([{name:'Ceia',options:[{foods:[]}]}]);
     app.requestRemoveMeal(app.meals()[0].key);
     expect(http.expectOne('/api/diet-calculations').request.body.meals).toEqual([]);
     expect(app.foodSearchMealKey()).toBeNull();
@@ -316,7 +317,7 @@ describe('Estimate, professional prescription and independent composition', () =
     quantity.value='15';quantity.dispatchEvent(new Event('input'));quantity.value='150';quantity.dispatchEvent(new Event('input'));
     http.expectNone('/api/diet-calculations');
     quantity.dispatchEvent(new Event('blur'));
-    const request=http.expectOne('/api/diet-calculations');expect(request.request.body.meals[0].foods[0].quantityG).toBe(150);
+    const request=http.expectOne('/api/diet-calculations');expect(request.request.body.meals[0].options[0].foods[0].quantityG).toBe(150);
     fixture.detectChanges();expect(app.result()).not.toBeNull();
     expect(fixture.nativeElement.querySelector('.meal-summary-values').textContent).toContain('123');
     request.flush(mealResponse);
@@ -344,7 +345,7 @@ describe('Estimate, professional prescription and independent composition', () =
   });
   it('adds food without estimates, prescription or patient',()=>{
     createMeal();app.addFood(food);const request=http.expectOne('/api/diet-calculations');
-    expect(request.request.body).toEqual({targets:null,meals:[{name:'Almoço',foods:[{foodId:42,quantityG:100}]}]});request.flush(mealResponse);
+    expect(request.request.body).toEqual({targets:null,meals:[{name:'Almoço',options:[{foods:[{foodId:42,quantityG:100}]}]}]});request.flush(mealResponse);
   });
   it('keeps a computed estimate separate until the explicit use-as-target action',()=>{
     selectDri();app.updateEstimate();http.expectOne('/api/energy-estimates').flush(estimate);flushComposition();
@@ -539,33 +540,33 @@ describe('Estimate, professional prescription and independent composition', () =
   });
   it('recalculates committed quantities once and cancels stale calculations',async()=>{
     vi.useFakeTimers();createMeal();app.addFood(food);const previous=http.expectOne('/api/diet-calculations');
-    app.changeQuantity(app.meals()[0].key,app.meals()[0].foods[0].key,150);expect(previous.cancelled).toBe(true);
+    app.changeQuantity(app.meals()[0].key,app.meals()[0].options[0].foods[0].key,150);expect(previous.cancelled).toBe(true);
     await vi.advanceTimersByTimeAsync(200);const current=http.expectOne('/api/diet-calculations');
-    expect(current.request.body.meals[0].foods).toEqual([{foodId:42,quantityG:150}]);current.flush(mealResponse);
-    app.removeFood(app.meals()[0].key,app.meals()[0].foods[0].key);expect(http.expectOne('/api/diet-calculations').request.body.meals[0].foods).toEqual([]);
+    expect(current.request.body.meals[0].options[0].foods).toEqual([{foodId:42,quantityG:150}]);current.flush(mealResponse);
+    app.removeFood(app.meals()[0].key,app.meals()[0].options[0].foods[0].key);expect(http.expectOne('/api/diet-calculations').request.body.meals[0].options[0].foods).toEqual([]);
   });
   it('restores the last quantity when the field is left empty, without recalculating',()=>{
     createMeal();app.addFood(food);http.expectOne('/api/diet-calculations').flush(mealResponse);
     const input=document.createElement('input');input.value='';
-    app.changeQuantity(app.meals()[0].key,app.meals()[0].foods[0].key,null,input);
+    app.changeQuantity(app.meals()[0].key,app.meals()[0].options[0].foods[0].key,null,input);
     http.expectNone('/api/diet-calculations');
-    expect(input.value).toBe('100');expect(app.meals()[0].foods[0].quantityG).toBe(100);expect(app.result()).not.toBeNull();
+    expect(input.value).toBe('100');expect(app.meals()[0].options[0].foods[0].quantityG).toBe(100);expect(app.result()).not.toBeNull();
   });
   it('keeps a portion rejected for its quantity marked and calculates the rest of the day without it',()=>{
     createMeal();app.addFood(food);http.expectOne('/api/diet-calculations').flush(mealResponse);
     app.openFoodSearch(app.meals()[0].key);app.addFood({...food,id:7});http.expectOne('/api/diet-calculations').flush(response);
-    const [zeroed,kept]=app.meals()[0].foods;
+    const [zeroed,kept]=app.meals()[0].options[0].foods;
     app.changeQuantity(app.meals()[0].key,zeroed.key,0);
     const rejected=http.expectOne('/api/diet-calculations');
-    expect(rejected.request.body.meals[0].foods).toEqual([{foodId:42,quantityG:0},{foodId:7,quantityG:100}]);
-    rejected.flush({errors:[{field:'meals[0].foods[0].quantityG',message:'Informe uma quantidade maior que zero.'}]},{status:400,statusText:'Bad Request'});
+    expect(rejected.request.body.meals[0].options[0].foods).toEqual([{foodId:42,quantityG:0},{foodId:7,quantityG:100}]);
+    rejected.flush({errors:[{field:'meals[0].options[0].foods[0].quantityG',message:'Informe uma quantidade maior que zero.'}]},{status:400,statusText:'Bad Request'});
 
     const retry=http.expectOne('/api/diet-calculations');
-    expect(retry.request.body.meals[0].foods).toEqual([{foodId:7,quantityG:100}]);
-    retry.flush({...mealResponse,meals:[{...mealResponse.meals[0],foods:[{...mealResponse.meals[0].foods[0],foodId:7}]}]});
-    expect(app.errors()).toEqual([]);expect(app.meals()[0].foods).toHaveLength(2);
+    expect(retry.request.body.meals[0].options[0].foods).toEqual([{foodId:7,quantityG:100}]);
+    retry.flush({...mealResponse,meals:[{...mealResponse.meals[0],options:[{...mealResponse.meals[0].options[0],foods:[{...mealResponse.meals[0].options[0].foods[0],foodId:7}]}]}]});
+    expect(app.errors()).toEqual([]);expect(app.meals()[0].options[0].foods).toHaveLength(2);
     expect(app.invalidPortions().get(zeroed.key)).toBe('Informe uma quantidade maior que zero.');
-    expect(app.result()!.meals[0].foods.map(item=>item?.foodId ?? null)).toEqual([null,7]);
+    expect(app.result()!.meals[0].options[0].foods.map(item=>item?.foodId ?? null)).toEqual([null,7]);
     fixture.detectChanges();
     const rows=fixture.nativeElement.querySelectorAll('.meal-body .food-row');
     expect(rows[0].classList).toContain('invalid-portion');expect(rows[1].classList).not.toContain('invalid-portion');
@@ -573,15 +574,247 @@ describe('Estimate, professional prescription and independent composition', () =
     expect(rows[1].textContent).toContain('100 kcal');
 
     app.changeQuantity(app.meals()[0].key,zeroed.key,50);
-    expect(http.expectOne('/api/diet-calculations').request.body.meals[0].foods).toEqual([{foodId:42,quantityG:50},{foodId:7,quantityG:100}]);
+    expect(http.expectOne('/api/diet-calculations').request.body.meals[0].options[0].foods).toEqual([{foodId:42,quantityG:50},{foodId:7,quantityG:100}]);
     expect(app.invalidPortions().has(zeroed.key)).toBe(false);expect(kept.quantityG).toBe(100);
   });
   it('other validation errors still block the whole calculation',()=>{
     createMeal();app.addFood(food);http.expectOne('/api/diet-calculations').flush(mealResponse);
-    app.changeQuantity(app.meals()[0].key,app.meals()[0].foods[0].key,150);
-    http.expectOne('/api/diet-calculations').flush({errors:[{field:'meals[0].foods[0].quantityG',message:'Quantidade'},{field:'meals',message:'Limite'}]},{status:400,statusText:'Bad Request'});
+    app.changeQuantity(app.meals()[0].key,app.meals()[0].options[0].foods[0].key,150);
+    http.expectOne('/api/diet-calculations').flush({errors:[{field:'meals[0].options[0].foods[0].quantityG',message:'Quantidade'},{field:'meals',message:'Limite'}]},{status:400,statusText:'Bad Request'});
     http.expectNone('/api/diet-calculations');
     expect(app.result()).toBeNull();expect(app.errors()).toHaveLength(2);expect(app.invalidPortions().size).toBe(0);
+  });
+
+  // Meal options: only option 1 counts toward the day (backend rule); the screen sends every option.
+  const optionTotals = (kcal: number) => ({energyKcal:kcal,carbohydrateG:kcal/10,proteinG:1,fatG:2});
+  function twoOptionResponse(): CalculationResponse {
+    const first = mealResponse.meals[0].options[0];
+    return {...mealResponse,meals:[{name:'Almoço',totals:first.totals,options:[first,
+      {totals:optionTotals(300),foods:[{...first.foods[0],foodId:7,nutrients:{energyKcal:300,carbohydrateG:30,proteinG:1,fatG:2}}]}]}]};
+  }
+  function mealWithTwoOptions() {
+    createMeal();app.addFood(food);http.expectOne('/api/diet-calculations').flush(mealResponse);
+    app.addOption(app.meals()[0].key);http.expectOne('/api/diet-calculations').flush(response);
+    const [first,second]=app.meals()[0].options;
+    app.removeFood(app.meals()[0].key,second.foods[0].key);http.expectOne('/api/diet-calculations').flush(response);
+    app.openFoodSearch(app.meals()[0].key);app.addFood({...food,id:7});
+    http.expectOne('/api/diet-calculations').flush(twoOptionResponse());
+    return {first,second:app.meals()[0].options[1]};
+  }
+  it('starts every meal with one option and "+" copies the open option into a new one, up to five',()=>{
+    createMeal();app.addFood(food);http.expectOne('/api/diet-calculations').flush(mealResponse);
+    const meal=app.meals()[0];expect(meal.options).toHaveLength(1);expect(meal.activeOptionKey).toBe(meal.options[0].key);
+    app.changeQuantity(meal.key,meal.options[0].foods[0].key,150);http.expectOne('/api/diet-calculations').flush(mealResponse);
+    app.addOption(meal.key);
+    const request=http.expectOne('/api/diet-calculations');
+    expect(request.request.body.meals[0].options).toEqual([{foods:[{foodId:42,quantityG:150}]},{foods:[{foodId:42,quantityG:150}]}]);
+    request.flush(response);
+    const [first,copy]=app.meals()[0].options;
+    expect(app.meals()[0].activeOptionKey).toBe(copy.key);
+    expect(copy.foods[0].key).not.toBe(first.foods[0].key);expect(copy.foods[0].quantityG).toBe(150);
+    for (let i=0;i<3;i++) { app.addOption(meal.key);flushComposition(); }
+    expect(app.meals()[0].options).toHaveLength(5);
+    app.addOption(meal.key);http.expectNone('/api/diet-calculations');expect(app.meals()[0].options).toHaveLength(5);
+    fixture.detectChanges();
+    const tabs=fixture.nativeElement.querySelectorAll('[role="tab"]');
+    expect(Array.from(tabs as NodeListOf<HTMLElement>).map(tab=>tab.querySelector('.option-label')!.textContent!.replace(/\s+/g,' ').trim()))
+      .toEqual(['Opção 1, conta na meta','Opção 2','Opção 3','Opção 4','Opção 5']);
+    expect(fixture.nativeElement.querySelectorAll('[role="tab"] .option-close')).toHaveLength(5);
+    expect(tabs[4].getAttribute('aria-selected')).toBe('true');expect(tabs[0].getAttribute('aria-selected')).toBe('false');
+    expect(fixture.nativeElement.querySelector('.option-add').disabled).toBe(true);
+  });
+  it('adds, edits and removes foods only in the open option',()=>{
+    const {first,second}=mealWithTwoOptions();
+    const mealKey=app.meals()[0].key;
+    expect(app.meals()[0].options[0].foods.map(item=>item.food.id)).toEqual([42]);
+    expect(second.foods.map(item=>item.food.id)).toEqual([7]);
+    app.changeQuantity(mealKey,second.foods[0].key,80);
+    expect(http.expectOne('/api/diet-calculations').request.body.meals[0].options).toEqual([{foods:[{foodId:42,quantityG:100}]},{foods:[{foodId:7,quantityG:80}]}]);
+    app.selectOption(mealKey,first.key);app.openFoodSearch(mealKey);app.addFood({...food,id:9});
+    expect(http.expectOne('/api/diet-calculations').request.body.meals[0].options).toEqual([{foods:[{foodId:42,quantityG:100},{foodId:9,quantityG:100}]},{foods:[{foodId:7,quantityG:80}]}]);
+  });
+  it('shows option 1 in the summary line with "+N opções" and the open option totals as not counting',()=>{
+    mealWithTwoOptions();
+    fixture.detectChanges();
+    const panel: HTMLElement=fixture.nativeElement.querySelector('.meal-panel');
+    expect(panel.querySelector('.meal-count')!.textContent).toContain('1 item');
+    expect(panel.querySelector('.meal-options-count')!.textContent!.trim()).toBe('+1 opção');
+    expect(panel.querySelector('.meal-summary')!.textContent).toContain('123 kcal');
+    expect(panel.querySelector('.option-totals')!.textContent!.replace(/\s+/g,' ')).toContain('Totais da Opção 2');
+    expect(panel.querySelector('.option-totals')!.textContent).toContain('300 kcal');
+    expect(panel.querySelector('.option-totals')!.textContent).toContain('não conta na meta');
+    expect(panel.querySelector('.meal-body .food-row')!.textContent).toContain('300 kcal');
+    app.selectOption(app.meals()[0].key,app.meals()[0].options[0].key);fixture.detectChanges();
+    expect(panel.querySelector('.option-totals')).toBeNull();
+    expect(panel.querySelector('.meal-body .food-row')!.textContent).toContain('100 kcal');
+  });
+  it('"Tornar opção 1" moves the option to the first position and recalculates',()=>{
+    const {first,second}=mealWithTwoOptions();
+    fixture.detectChanges();
+    const action=Array.from(fixture.nativeElement.querySelectorAll('.option-actions button') as NodeListOf<HTMLButtonElement>).find(button=>button.textContent!.includes('Tornar opção 1'))!;
+    action.click();
+    expect(app.meals()[0].options.map(option=>option.key)).toEqual([second.key,first.key]);
+    expect(app.meals()[0].activeOptionKey).toBe(second.key);
+    expect(app.result()!.meals[0].options[0].totals.energyKcal).toBe(300);
+    expect(http.expectOne('/api/diet-calculations').request.body.meals[0].options).toEqual([{foods:[{foodId:7,quantityG:100}]},{foods:[{foodId:42,quantityG:100}]}]);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.option-actions').textContent).not.toContain('Tornar opção 1');
+  });
+  it('removes an option with foods after confirmation, renumbers and never removes the only option',()=>{
+    const {first,second}=mealWithTwoOptions();
+    const mealKey=app.meals()[0].key;
+    app.selectOption(mealKey,first.key);
+    app.requestRemoveOption(mealKey,first.key);http.expectNone('/api/diet-calculations');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.meal-body .meal-confirmation').textContent).toContain('A Opção 2 passará a contar na meta.');
+    app.removeOption(mealKey,first.key);
+    expect(app.meals()[0].options.map(option=>option.key)).toEqual([second.key]);
+    expect(app.meals()[0].activeOptionKey).toBe(second.key);
+    expect(http.expectOne('/api/diet-calculations').request.body.meals[0].options).toEqual([{foods:[{foodId:7,quantityG:100}]}]);
+    app.removeOption(mealKey,second.key);http.expectNone('/api/diet-calculations');expect(app.meals()[0].options).toHaveLength(1);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.option-close')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.meal-options-count')).toBeNull();
+  });
+  it('removes an empty option without confirmation and asks before removing a meal with foods in any option',()=>{
+    createMeal();app.addOption(app.meals()[0].key);flushComposition();
+    const mealKey=app.meals()[0].key;
+    app.requestRemoveOption(mealKey,app.meals()[0].options[1].key);
+    expect(app.pendingOptionRemoval()).toBeNull();expect(app.meals()[0].options).toHaveLength(1);flushComposition();
+    app.addOption(mealKey);flushComposition();
+    app.openFoodSearch(mealKey);app.addFood(food);flushComposition();
+    expect(app.meals()[0].options[0].foods).toHaveLength(0);
+    app.requestRemoveMeal(mealKey);expect(app.pendingMealRemoval()).toBe(mealKey);
+  });
+  it('closes tabs like a browser: × or middle click, an empty tab at once, one with foods after confirming',()=>{
+    createMeal();app.addFood(food);http.expectOne('/api/diet-calculations').flush(mealResponse);
+    const mealKey=app.meals()[0].key;
+    app.addOption(mealKey);flushComposition();
+    const copy=app.meals()[0].options[1];
+    app.removeFood(mealKey,copy.foods[0].key);flushComposition();
+    app.selectOption(mealKey,app.meals()[0].options[0].key);app.addOption(mealKey);flushComposition();
+    app.selectOption(mealKey,app.meals()[0].options[0].key);fixture.detectChanges();
+    const tabs=()=>Array.from(fixture.nativeElement.querySelectorAll('[role="tab"]') as NodeListOf<HTMLElement>);
+    // × on the empty second tab closes it without leaving the open tab.
+    (tabs()[1].querySelector('.option-close') as HTMLButtonElement).click();
+    expect(app.meals()[0].options.map(option=>option.key)).not.toContain(copy.key);
+    expect(app.meals()[0].activeOptionKey).toBe(app.meals()[0].options[0].key);flushComposition();fixture.detectChanges();
+    // Middle click on a tab with foods opens it and asks before closing.
+    tabs()[1].dispatchEvent(new MouseEvent('auxclick',{button:1,bubbles:true}));fixture.detectChanges();
+    expect(app.meals()[0].activeOptionKey).toBe(app.meals()[0].options[1].key);
+    expect(fixture.nativeElement.querySelector('.meal-body .meal-confirmation').textContent).toContain('Fechar a Opção 2 e seus alimentos?');
+    http.expectNone('/api/diet-calculations');
+    (Array.from(fixture.nativeElement.querySelectorAll('.meal-body .meal-confirmation button') as NodeListOf<HTMLButtonElement>).find(button=>button.textContent!.includes('Fechar opção'))!).click();
+    expect(app.meals()[0].options).toHaveLength(1);flushComposition();
+  });
+  it('drags a tab to reorder the options; the one dropped first counts toward the day',()=>{
+    const {first,second}=mealWithTwoOptions();
+    app.dropOption(app.meals()[0].key,{previousIndex:1,currentIndex:0} as never);
+    expect(app.meals()[0].options.map(option=>option.key)).toEqual([second.key,first.key]);
+    expect(http.expectOne('/api/diet-calculations').request.body.meals[0].options).toEqual([{foods:[{foodId:7,quantityG:100}]},{foods:[{foodId:42,quantityG:100}]}]);
+    app.dropOption(app.meals()[0].key,{previousIndex:0,currentIndex:0} as never);http.expectNone('/api/diet-calculations');
+  });
+  it('arrow keys move between option tabs',()=>{
+    mealWithTwoOptions();fixture.detectChanges();
+    const tabs=fixture.nativeElement.querySelectorAll('[role="tab"]');
+    tabs[1].dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight'}));
+    expect(app.meals()[0].activeOptionKey).toBe(app.meals()[0].options[0].key);
+    fixture.detectChanges();
+    fixture.nativeElement.querySelectorAll('[role="tab"]')[0].dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft'}));
+    expect(app.meals()[0].activeOptionKey).toBe(app.meals()[0].options[1].key);
+  });
+  it('marks a rejected portion in an option other than the first',()=>{
+    const {second}=mealWithTwoOptions();
+    app.changeQuantity(app.meals()[0].key,second.foods[0].key,0);
+    http.expectOne('/api/diet-calculations').flush({errors:[{field:'meals[0].options[1].foods[0].quantityG',message:'Informe uma quantidade maior que zero.'}]},{status:400,statusText:'Bad Request'});
+    const retry=http.expectOne('/api/diet-calculations');
+    expect(retry.request.body.meals[0].options).toEqual([{foods:[{foodId:42,quantityG:100}]},{foods:[]}]);
+    const first=mealResponse.meals[0].options[0];
+    retry.flush({...mealResponse,meals:[{name:'Almoço',totals:first.totals,options:[first,{totals:optionTotals(0),foods:[]}]}]});
+    expect(app.invalidPortions().get(second.foods[0].key)).toBe('Informe uma quantidade maior que zero.');
+    expect(app.result()!.meals[0].options[1].foods).toEqual([null]);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.meal-body .food-row').classList).toContain('invalid-portion');
+    expect(app.errors()).toEqual([]);
+  });
+
+  // Fiber and the micronutrient report: every value comes from the backend.
+  const dayNutrient = (code: string, name: string, category: DayNutrient['category'], consumed: number | null, extra: Partial<DayNutrient> = {}): DayNutrient =>
+    ({code,name,unit:'mg',category,inReport:category !== 'FIBER',consumed,status:consumed === null ? 'NO_DATA' : 'COMPLETE',foodsWithoutData:consumed === null ? 1 : 0,reference:null,...extra});
+  const reportResponse: CalculationResponse = {...mealResponse,
+    nutrients:[
+      dayNutrient('FIBER','Fibra alimentar','FIBER',12.5,{unit:'g',reference:{amount:25,type:'AI',percent:50}}),
+      dayNutrient('CALCIUM','Cálcio','MINERAL',500,{reference:{amount:1000,type:'RDA',percent:50}}),
+      dayNutrient('SODIUM','Sódio','MINERAL',4500,{reference:{amount:1500,type:'AI',percent:300}}),
+      dayNutrient('VITAMIN_C','Vitamina C','VITAMIN',30,{status:'PARTIAL',foodsWithoutData:2,reference:{amount:75,type:'RDA',percent:40}}),
+      dayNutrient('CHOLESTEROL','Colesterol','LIPID',120),
+      dayNutrient('TRANS_FAT_18_1','Gordura trans (18:1t)','LIPID',null,{unit:'g'}),
+      dayNutrient('MOISTURE','Umidade','OTHER',80,{inReport:false}),
+    ],
+    referenceSource:{name:'Food and Nutrition Board / IOM (DRI)',profile:'Mulher, 19–30 anos'}};
+  it('sends the reference profile only with sex and age, and recalculates when they change',()=>{
+    createMeal();
+    app.form.controls.patient.patchValue({sex:'FEMALE'});
+    http.expectNone('/api/diet-calculations');
+    app.form.controls.patient.patchValue({age:30});
+    const withProfile=http.expectOne('/api/diet-calculations');
+    expect(withProfile.request.body.referenceProfile).toEqual({sex:'FEMALE',age:30});withProfile.flush(response);
+    app.form.controls.patient.patchValue({weightKg:70});http.expectNone('/api/diet-calculations');
+    app.form.controls.patient.patchValue({sex:'UNSPECIFIED'});
+    const without=http.expectOne('/api/diet-calculations');
+    expect('referenceProfile' in without.request.body).toBe(false);without.flush(response);
+  });
+  it('shows fiber in the analysis card with and without a reference',()=>{
+    createMeal();app.addFood(food);http.expectOne('/api/diet-calculations').flush(reportResponse);fixture.detectChanges();
+    const fiber=()=>fixture.nativeElement.querySelector('.analysis-metric.fiber') as HTMLElement;
+    expect(fiber().textContent!.replace(/\s+/g,' ')).toContain('12,5 / 25 g');
+    expect(fiber().textContent).toContain('50% da referência (AI)');
+    expect((fiber().querySelector('.meter-fill') as HTMLElement).style.getPropertyValue('--fill')).toBe('0.5');
+    app.calculate();http.expectOne('/api/diet-calculations').flush({...reportResponse,referenceSource:null,
+      nutrients:[dayNutrient('FIBER','Fibra alimentar','FIBER',3,{unit:'g',status:'PARTIAL',foodsWithoutData:1})]});
+    fixture.detectChanges();
+    expect(fiber().textContent).toContain('Sem referência');
+    expect(fiber().querySelector('.partial-mark')!.getAttribute('title')).toBe('Sem dado em 1 alimento');
+    expect(fixture.nativeElement.querySelector('.donut-shares').textContent).not.toContain('Fibra');
+  });
+  it('lists the report by group with the reference line, 200% scale, partial and missing values',()=>{
+    createMeal();app.addFood(food);http.expectOne('/api/diet-calculations').flush(reportResponse);fixture.detectChanges();
+    const report: HTMLElement=fixture.nativeElement.querySelector('.nutrient-report');
+    expect(Array.from(report.querySelectorAll('h3')).map(item=>item.textContent!.trim())).toEqual(['Minerais','Vitaminas','Lipídios']);
+    const rows=Array.from(report.querySelectorAll('.report-row')) as HTMLElement[];
+    expect(rows.map(row=>row.querySelector('.report-name')!.textContent!.replace('*','').replace(/sem dado.*/,'').trim()))
+      .toEqual(['Cálcio','Sódio','Vitamina C','Colesterol','Gordura trans (18:1t)']);
+    expect(report.textContent).not.toContain('Fibra');expect(report.textContent).not.toContain('Umidade');
+    const [calcium,sodium,vitaminC,cholesterol,trans]=rows;
+    expect(calcium.querySelector('.report-value')!.textContent!.replace(/\s+/g,' ')).toContain('500,0 / 1.000,0 mg');
+    expect((calcium.querySelector('.report-fill') as HTMLElement).style.getPropertyValue('--fill')).toBe('0.25');
+    expect((calcium.querySelector('.report-reference') as HTMLElement).style.getPropertyValue('--at')).toBe('0.5');
+    expect(calcium.querySelector('.report-over')).toBeNull();
+    expect((sodium.querySelector('.report-fill') as HTMLElement).style.getPropertyValue('--fill')).toBe('1');
+    expect(sodium.querySelector('.report-over')!.textContent).toBe('›');
+    expect(vitaminC.querySelector('.partial-mark')!.getAttribute('title')).toBe('Sem dado em 2 alimentos');
+    expect(cholesterol.querySelector('.report-bar')).toBeNull();
+    expect(cholesterol.querySelector('.report-value')!.textContent).toContain('120,0');
+    expect(trans.classList).toContain('no-data');expect(trans.querySelector('.report-value strong')!.textContent).toBe('—');
+    expect(report.querySelector('.report-source')!.textContent).toContain('Referência: Food and Nutrition Board / IOM (DRI) · Mulher, 19–30 anos');
+    expect(report.querySelector('.report-source')!.textContent).toContain('a validar com o nutricionista');
+    expect(fixture.nativeElement.querySelector('.meals-panel').textContent).not.toContain('Cálcio');
+    const toggle=report.querySelector('.report-toggle') as HTMLButtonElement;
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    toggle.click();fixture.detectChanges();
+    expect(report.querySelector('.report-list')).toBeNull();expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    toggle.click();fixture.detectChanges();expect(report.querySelectorAll('.report-row')).toHaveLength(5);
+  });
+  it('asks for sex and age without a profile and survives an older API without nutrients',()=>{
+    createMeal();app.addFood(food);
+    const {nutrients,referenceSource,...older}=reportResponse;
+    expect(nutrients.length).toBeGreaterThan(0);expect(referenceSource).not.toBeNull();
+    http.expectOne('/api/diet-calculations').flush(older);fixture.detectChanges();
+    const report: HTMLElement=fixture.nativeElement.querySelector('.nutrient-report');
+    expect(report.querySelector('.report-empty')!.textContent).toContain('Adicione alimentos');
+    expect(report.querySelector('.report-source')!.textContent).toContain('Informe sexo e idade do paciente');
+    expect(fixture.nativeElement.querySelector('.analysis-metric.fiber .analysis-value').textContent.trim()).toBe('—');
+    expect(app.errors()).toEqual([]);
   });
 
   // Registered patient chosen for the planning (the planning itself is never saved).
@@ -727,7 +960,7 @@ describe('Estimate, professional prescription and independent composition', () =
   function foodRow() { return fixture.nativeElement.querySelector('.meal-body .food-row') as HTMLElement; }
   function withCalculatedFood(item: Food = food) {
     createMeal();app.addFood(item);
-    http.expectOne('/api/diet-calculations').flush({...mealResponse,meals:[{...mealResponse.meals[0],foods:[{...mealResponse.meals[0].foods[0],foodId:item.id}]}]});
+    http.expectOne('/api/diet-calculations').flush({...mealResponse,meals:[{...mealResponse.meals[0],options:[{...mealResponse.meals[0].options[0],foods:[{...mealResponse.meals[0].options[0].foods[0],foodId:item.id}]}]}]});
     fixture.detectChanges();
   }
   it('sizes a portion by the desired carbohydrate and recalculates with the weight from the backend',()=>{
@@ -743,8 +976,8 @@ describe('Estimate, professional prescription and independent composition', () =
     expect(request.request.headers.has('Authorization')).toBe(false);
     request.flush({foodId:42,nutrient:'CARBOHYDRATE',amount:40,quantityG:200});
     // Applied as a normal weight edit: same recalculation as typing 200 g.
-    expect(app.meals()[0].foods[0].quantityG).toBe(200);
-    expect(http.expectOne('/api/diet-calculations').request.body.meals[0].foods).toEqual([{foodId:42,quantityG:200}]);
+    expect(app.meals()[0].options[0].foods[0].quantityG).toBe(200);
+    expect(http.expectOne('/api/diet-calculations').request.body.meals[0].options[0].foods).toEqual([{foodId:42,quantityG:200}]);
     fixture.detectChanges();
     expect(foodRow().querySelector('.nutrient-edit')).toBeNull();
   });
@@ -779,7 +1012,7 @@ describe('Estimate, professional prescription and independent composition', () =
       {detail:'Há campos inválidos.',errors:[{field:'amount',message:'Quantidade muito pequena: a porção ficaria com menos de 0,1 g.'}]},
       {status:400,statusText:'Bad Request'});
     fixture.detectChanges();
-    expect(app.meals()[0].foods[0].quantityG).toBe(100);
+    expect(app.meals()[0].options[0].foods[0].quantityG).toBe(100);
     http.expectNone('/api/diet-calculations');
     const edit=foodRow().querySelector('.nutrient-edit.fat')!;
     expect(edit.classList).toContain('invalid');

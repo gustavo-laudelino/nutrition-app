@@ -293,12 +293,13 @@
               @if (!meal.name.trim()) { <small class="meal-name-hint">mantendo "{{ meal.savedName }}"</small> }
             </span>
           } @else {
-            <button type="button" class="meal-chip meal-name-chip" (click)="startEditMeal(meal.key)" [attr.aria-label]="'Renomear refeição ' + (mealIndex + 1)" title="Clique para renomear"><strong>{{ meal.savedName }}</strong></button>
+            <button type="button" class="meal-chip meal-name-chip" (click)="startEditMeal(meal.key)" [attr.aria-label]="'Renomear refeição ' + (mealIndex + 1) + (meal.options.length > 1 ? '. Resumo da Opção 1, mais ' + (meal.options.length - 1) + ' ' + (meal.options.length === 2 ? 'opção' : 'opções') : '')" title="Clique para renomear"><strong>{{ meal.savedName }}</strong>@if (meal.options.length > 1) { <small class="meal-options-count" [title]="'Resumo da Opção 1. ' + (meal.options.length - 1) + (meal.options.length === 2 ? ' outra opção não conta' : ' outras opções não contam') + ' na meta.'">+{{ meal.options.length - 1 }} {{ meal.options.length === 2 ? 'opção' : 'opções' }}</small> }</button>
           }
           <button type="button" class="meal-toggle" [class.open]="isMealExpanded(meal.key)" (click)="toggleMeal(meal.key)" [attr.aria-expanded]="isMealExpanded(meal.key)" [attr.aria-controls]="'meal-body-' + meal.key"
             [attr.aria-label]="(isMealExpanded(meal.key) ? 'Ocultar alimentos de ' : 'Ver alimentos de ') + meal.savedName" [title]="isMealExpanded(meal.key) ? 'Ocultar alimentos' : 'Ver alimentos'">
             <svg class="meal-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.7 9.3a1 1 0 0 1 1.4 0L12 13.2l3.9-3.9a1 1 0 1 1 1.4 1.4l-4.6 4.6a1 1 0 0 1-1.4 0L6.7 10.7a1 1 0 0 1 0-1.4z"/></svg>
-            <span class="meal-count">{{ meal.foods.length }} {{ meal.foods.length === 1 ? 'item' : 'itens' }}</span>
+            @let firstFoods = meal.options[0].foods.length;
+            <span class="meal-count">{{ firstFoods }} {{ firstFoods === 1 ? 'item' : 'itens' }}</span>
           </button>
           <span class="meal-summary-values">
             @let calculated = result()?.meals?.[mealIndex];
@@ -322,8 +323,59 @@
         }
         @if (isMealExpanded(meal.key)) {
         <div class="meal-body" [id]="'meal-body-' + meal.key">
-          @for (portion of meal.foods; track portion.key; let index = $index) {
-            @let calculatedFood = result()?.meals?.[mealIndex]?.foods?.[index];
+          @let openOption = activeOption(meal);
+          @let optionIndex = activeOptionIndex(meal);
+          @let calculatedOption = result()?.meals?.[mealIndex]?.options?.[optionIndex];
+          <!-- Options as browser tabs on top of the meal sheet: only option 1 counts toward the day; "+" copies the open option;
+               × or middle click closes; dragging a tab reorders (dropping it first makes it option 1). -->
+          <div class="option-strip">
+            <div class="option-tabs" role="tablist" [attr.aria-label]="'Opções de ' + meal.savedName"
+              cdkDropList cdkDropListOrientation="horizontal" cdkDropListLockAxis="x" (cdkDropListDropped)="dropOption(meal.key, $event)">
+              @for (option of meal.options; track option.key; let index = $index) {
+                <div role="tab" class="option-tab" cdkDrag cdkDragLockAxis="x" cdkDragBoundary=".option-tabs" [cdkDragDisabled]="meal.options.length < 2"
+                  [id]="'option-tab-' + option.key" [class.active]="option.key === openOption.key" [class.counts]="index === 0"
+                  [attr.aria-selected]="option.key === openOption.key" [attr.aria-controls]="'option-panel-' + meal.key" [tabIndex]="option.key === openOption.key ? 0 : -1"
+                  [title]="index === 0 ? 'Opção 1 · conta na meta' : 'Opção ' + (index + 1) + ' · não conta na meta'"
+                  (click)="selectOption(meal.key, option.key)" (auxclick)="$event.button === 1 && requestRemoveOption(meal.key, option.key)" (mousedown)="$event.button === 1 && $event.preventDefault()"
+                  (keydown.arrowleft)="$event.preventDefault(); stepOption(meal, -1)" (keydown.arrowright)="$event.preventDefault(); stepOption(meal, 1)"
+                  (keydown.delete)="requestRemoveOption(meal.key, option.key)">
+                  @if (index === 0 && meal.options.length > 1) { <i class="option-goal" aria-hidden="true"></i> }
+                  <span class="option-label">Opção {{ index + 1 }}@if (index === 0 && meal.options.length > 1) {<span class="sr-only">, conta na meta</span>}</span>
+                  @if (meal.options.length > 1) {
+                    <button type="button" class="option-close" tabindex="-1" (click)="$event.stopPropagation(); requestRemoveOption(meal.key, option.key)"
+                      [attr.aria-label]="'Fechar Opção ' + (index + 1)" [title]="'Fechar Opção ' + (index + 1)">×</button>
+                  }
+                </div>
+              }
+            </div>
+            <button type="button" class="option-add" (click)="addOption(meal.key)" [disabled]="meal.options.length >= maxMealOptions"
+              [attr.aria-label]="'Nova opção de ' + meal.savedName + ', copiando a Opção ' + (optionIndex + 1)"
+              [title]="meal.options.length >= maxMealOptions ? 'Limite de ' + maxMealOptions + ' opções' : 'Nova opção (cópia da Opção ' + (optionIndex + 1) + ')'">+</button>
+            <div class="option-actions">
+              @if (optionIndex > 0) { <button type="button" class="text-button" (click)="makeFirstOption(meal.key, openOption.key)">Tornar opção 1</button> }
+            </div>
+          </div>
+          <div class="option-sheet" [class.first-open]="optionIndex === 0">
+          @if (pendingOptionRemoval()?.optionKey === openOption.key) {
+            <div class="meal-confirmation" role="alertdialog" aria-label="Confirmar fechamento da opção">
+              <p>Fechar a Opção {{ optionIndex + 1 }} e seus alimentos?@if (optionIndex === 0) { A Opção 2 passará a contar na meta. }</p>
+              <button type="button" class="secondary-button" (click)="pendingOptionRemoval.set(null)">Cancelar</button>
+              <button type="button" class="secondary-button danger" (click)="removeOption(meal.key, openOption.key)">Fechar opção</button>
+            </div>
+          }
+          @if (optionIndex > 0) {
+            <div class="option-totals" role="status">
+              <span>Totais da Opção {{ optionIndex + 1 }}</span>
+              <span class="meal-chip macro carb" title="Carboidratos"><i aria-hidden="true"></i><span class="sr-only">Carboidratos </span>{{ calculatedOption ? (calculatedOption.totals.carbohydrateG | number:'1.0-1') + 'g' : '—' }}</span>
+              <span class="meal-chip macro protein" title="Proteínas"><i aria-hidden="true"></i><span class="sr-only">Proteínas </span>{{ calculatedOption ? (calculatedOption.totals.proteinG | number:'1.0-1') + 'g' : '—' }}</span>
+              <span class="meal-chip macro fat" title="Gorduras"><i aria-hidden="true"></i><span class="sr-only">Gorduras </span>{{ calculatedOption ? (calculatedOption.totals.fatG | number:'1.0-1') + 'g' : '—' }}</span>
+              <span class="meal-chip kcal">{{ calculatedOption ? (calculatedOption.totals.energyKcal | number:'1.0-0') + ' kcal' : '— kcal' }}</span>
+              <em>não conta na meta</em>
+            </div>
+          }
+          <div class="option-panel" role="tabpanel" [id]="'option-panel-' + meal.key" [attr.aria-labelledby]="'option-tab-' + openOption.key">
+          @for (portion of openOption.foods; track portion.key; let index = $index) {
+            @let calculatedFood = calculatedOption?.foods?.[index];
             @let quantityError = invalidPortions().get(portion.key);
             <div class="food-row" [class.invalid-portion]="quantityError">
               <span class="meal-chip food-name-chip" [title]="portion.food.name + ' · ' + portion.food.source"><strong>{{ portion.food.name }}</strong></span>
@@ -357,7 +409,8 @@
               <div class="row-actions">
                 <button type="button" class="meal-icon-button subtle" (click)="removeFood(meal.key, portion.key)" [attr.aria-label]="'Remover ' + portion.food.name + ' da refeição ' + (mealIndex + 1)" title="Remover alimento">×</button></div>
             </div>
-          } @empty { <p class="meal-body-empty">Nenhum alimento nesta refeição.</p> }
+          } @empty { <p class="meal-body-empty">{{ meal.options.length > 1 ? 'Nenhum alimento nesta opção.' : 'Nenhum alimento nesta refeição.' }}</p> }
+          </div>
 
           @if (foodSearchMealKey() === meal.key) {
             <div class="meal-food-search">
@@ -378,7 +431,7 @@
                   @for (food of page.items; track food.id) {
                     <div class="food-row result">
                       <span class="meal-chip food-name-chip" [title]="food.name + ' · ' + food.source + (food.sourceCode ? ' ' + food.sourceCode : '') + ' · valores por 100 g'"><strong>{{ food.name }}</strong></span>
-                      <button type="button" class="add-button" (click)="addFood(food)" [disabled]="catalogLoading()" [attr.aria-label]="'Adicionar ' + food.name + ' a ' + meal.savedName">+ adicionar</button>
+                      <button type="button" class="add-button" (click)="addFood(food)" [disabled]="catalogLoading()" [attr.aria-label]="'Adicionar ' + food.name + ' a ' + meal.savedName + (meal.options.length > 1 ? ', Opção ' + (activeOptionIndex(meal) + 1) : '')">+ adicionar</button>
                       <span class="meal-chip macro carb" title="Carboidratos por 100 g"><i aria-hidden="true"></i><span class="sr-only">Carboidratos </span>{{ food.carbohydrateG | number:'1.0-1' }}g</span>
                       <span class="meal-chip macro protein" title="Proteínas por 100 g"><i aria-hidden="true"></i><span class="sr-only">Proteínas </span>{{ food.proteinG | number:'1.0-1' }}g</span>
                       <span class="meal-chip macro fat" title="Gorduras por 100 g"><i aria-hidden="true"></i><span class="sr-only">Gorduras </span>{{ food.fatG | number:'1.0-1' }}g</span>
@@ -392,6 +445,7 @@
           } @else {
             <button type="button" class="add-food-row" (click)="openFoodSearch(meal.key)">+ Adicionar alimento</button>
           }
+          </div>
         </div>
         }
       </section>
@@ -400,6 +454,7 @@
     </section>
     <p class="bottom-note">Os totais são calculados mesmo sem metas. Quando há uma meta, o restante negativo indica que ela foi ultrapassada. Planejamento temporário: os dados não são salvos ao recarregar a página.</p>
       </div>
+      <div class="summary-column">
       <aside class="summary analysis-card" [class.celebrating]="celebrating()" [class.has-highlight]="highlightedMacro() !== null" aria-label="Resumo nutricional" [attr.aria-busy]="calculating()">
         <div class="summary-heading"><h2>Total do dia</h2><span class="summary-status" role="status">{{ calculating() ? 'Atualizando…' : result() ? 'Atualizado' : 'Aguardando cálculo' }}</span></div>
         @let metricList = summaryMetrics;
@@ -514,6 +569,30 @@
             @for (metric of metricList.slice(1); track metric.key) {
               <ng-container *ngTemplateOutlet="metricRow; context: { $implicit: metric }" />
             }
+            <!-- Fiber: compared with the daily reference (AI) of the profile, not with a target; not part of the donut. -->
+            @let fiberTotal = fiber;
+            <div class="analysis-metric fiber">
+              <span class="analysis-label">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c4.5 3 6 7 6 10a6 6 0 0 1-12 0c0-3 1.5-7 6-10zm0 4v13"/></svg>
+                Fibra alimentar
+                @if (fiberTotal?.status === 'PARTIAL') { <span class="partial-mark" [title]="'Sem dado em ' + fiberTotal!.foodsWithoutData + (fiberTotal!.foodsWithoutData === 1 ? ' alimento' : ' alimentos')">*<span class="sr-only"> sem dado em {{ fiberTotal!.foodsWithoutData }} {{ fiberTotal!.foodsWithoutData === 1 ? 'alimento' : 'alimentos' }}</span></span> }
+              </span>
+              @if (fiberTotal) {
+                <span class="analysis-value">
+                  <strong>{{ fiberTotal.consumed !== null ? (fiberTotal.consumed | number:'1.0-1') : '—' }}</strong>
+                  <span>@if (fiberTotal.reference; as reference) { / {{ reference.amount | number:'1.0-1' }} }g</span>
+                </span>
+                <span class="meter" aria-hidden="true"><span class="meter-fill" [style.--fill]="fiberTotal.progress"></span></span>
+                <span class="analysis-remaining">
+                  @if (fiberTotal.reference; as reference) {
+                    @if (reference.percent !== null) { {{ reference.percent | number:'1.0-0' }}% da referência ({{ reference.type }}) } @else { Referência {{ reference.amount | number:'1.0-1' }} g ({{ reference.type }}) }
+                  } @else { Sem referência }
+                </span>
+              } @else {
+                <span class="analysis-value muted">—</span>
+                <span class="meter" aria-hidden="true"><span class="meter-fill"></span></span>
+              }
+            </div>
           </div>
         </div>
         @if (result(); as response) {
@@ -538,6 +617,50 @@
           }
         }
       </aside>
+
+      <!-- Day's micronutrients (option 1 of each meal), compared with the profile's daily reference: all values from the backend. -->
+      @let report = nutrientReport;
+      <section class="nutrient-report" aria-labelledby="nutrient-report-title">
+        <div class="report-heading">
+          <h2 id="nutrient-report-title">Micronutrientes</h2>
+          <button type="button" class="pill-button report-toggle" (click)="reportExpanded.set(!reportExpanded())" [attr.aria-expanded]="reportExpanded()" aria-controls="nutrient-report-body">
+            {{ reportExpanded() ? 'recolher' : 'expandir' }}
+          </button>
+        </div>
+        @if (reportExpanded()) {
+          <div id="nutrient-report-body">
+            @for (group of report; track group.category) {
+              <h3>{{ group.label }}</h3>
+              <ul class="report-list">
+                @for (item of group.items; track item.code) {
+                  <li class="report-row" [class.no-data]="item.status === 'NO_DATA'">
+                    <span class="report-name">{{ item.name }}
+                      @if (item.status === 'PARTIAL') { <span class="partial-mark" [title]="'Sem dado em ' + item.foodsWithoutData + (item.foodsWithoutData === 1 ? ' alimento' : ' alimentos')">*<span class="sr-only"> sem dado em {{ item.foodsWithoutData }} {{ item.foodsWithoutData === 1 ? 'alimento' : 'alimentos' }}</span></span> }
+                    </span>
+                    <span class="report-value"><strong>{{ item.consumed !== null ? (item.consumed | number:'1.1-1') : '—' }}</strong>@if (item.reference; as reference) { / {{ reference.amount | number:'1.1-1' }} }<small>{{ item.unit }}</small></span>
+                    @if (item.reference) {
+                      <span class="report-bar" [class.over]="item.over" [attr.title]="item.reference.percent !== null ? (item.reference.percent | number:'1.0-1') + '% da referência (' + item.reference.type + ')' : 'Sem dado'" aria-hidden="true">
+                        <span class="report-fill" [style.--fill]="item.fill"></span>
+                        <span class="report-reference" [style.--at]="item.referenceAt"></span>
+                        @if (item.over) { <span class="report-over">›</span> }
+                      </span>
+                      @if (item.reference.percent !== null) { <span class="sr-only">{{ item.reference.percent | number:'1.0-1' }}% da referência</span> }
+                    }
+                  </li>
+                }
+              </ul>
+            } @empty {
+              <p class="report-empty">Adicione alimentos para ver os micronutrientes do dia.</p>
+            }
+            @if (result()?.referenceSource; as source) {
+              <p class="report-source">Referência: {{ source.name }} · {{ source.profile }}<br>Valores de referência a validar com o nutricionista.</p>
+            } @else {
+              <p class="report-source">Informe sexo e idade do paciente para comparar com a referência.</p>
+            }
+          </div>
+        }
+      </section>
+      </div>
     </div>
 </main>
 <footer><span>nutrição.</span><span>Planejamento com atenção a cada detalhe.</span></footer>
