@@ -1,0 +1,22 @@
+<div class="app-frame" [class.with-sidebar]="session.token()">
+  @if (session.token()) {
+    <nav class="sidebar" aria-label="Menu do nutricionista">
+      <a class="sidebar-brand" routerLink="/planejamento" aria-label="Nutrição, planejamento alimentar">
+        <span class="sidebar-brand-icon" aria-hidden="true">n</span> nutrição<span class="sidebar-brand-dot">.</span>
+      </a>
+      <ul class="sidebar-links">
+        <li><a routerLink="/perfil" routerLinkActive="active" ariaCurrentWhenActive="page">Perfil</a></li>
+        <li><a routerLink="/pacientes" routerLinkActive="active" ariaCurrentWhenActive="page">Pacientes</a></li>
+        <li><a routerLink="/planejamento" routerLinkActive="active" ariaCurrentWhenActive="page">Planejamento alimentar</a></li>
+      </ul>
+      <div class="sidebar-account">
+        <span class="sidebar-name">{{ session.nutritionist()?.name }}</span>
+        @if (profileError()) {
+          <p role="alert" class="sidebar-error">Não foi possível carregar o perfil. <button type="button" (click)="loadProfile()">Tentar novamente</button></p>
+        }
+        <button type="button" class="sidebar-logout" (click)="session.logout()">Sair</button>
+      </div>
+    </nav>
+  }
+  <div class="app-content"><router-outlet /></div>
+</div>

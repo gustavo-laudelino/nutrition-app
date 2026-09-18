@@ -1,0 +1,52 @@
+<div class="account-page">
+  <div class="heading">
+    <h1>Pacientes</h1>
+    <a class="action-link" routerLink="/pacientes/novo">Novo paciente</a>
+  </div>
+  <section class="account-card">
+    <div class="toolbar">
+      <label>Buscar por nome
+        <input [formControl]="search" placeholder="Digite o nome" type="search">
+      </label>
+      <label>Situação
+        <select [value]="archived() ? 'archived' : 'active'" (change)="setArchived($any($event.target).value === 'archived')">
+          <option value="active">Ativos</option>
+          <option value="archived">Arquivados</option>
+        </select>
+      </label>
+    </div>
+    @if (error()) {
+      <p role="alert" class="error">{{ error() }}</p>
+    }
+    @if (loading()) {
+      <p role="status">Buscando pacientes…</p>
+    }
+    @if (!loading() && result(); as result) {
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Nome</th><th>Idade</th><th>Sexo</th><th>Última medida</th></tr>
+          </thead>
+          <tbody>
+            @for (patient of result.content; track patient.id) {
+              <tr>
+                <td><a [routerLink]="['/pacientes', patient.id]">{{ patient.name }}</a></td>
+                <td>{{ patient.ageYears === null ? '—' : patient.ageYears + ' anos' }}</td>
+                <td>{{ patient.sex === 'FEMALE' ? 'Feminino' : patient.sex === 'MALE' ? 'Masculino' : '—' }}</td>
+                <td>{{ patient.measuredAt ? (patient.measuredAt | date:'dd/MM/yyyy') : '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (!result.content.length) {
+        <p class="empty">Nenhum paciente encontrado.</p>
+      }
+      <div class="pager">
+        <span>{{ result.totalElements }} pacientes · Página {{ result.page + 1 }} de {{ result.totalPages || 1 }}</span>
+        <button (click)="goTo(result.page - 1)" [disabled]="result.page === 0">Anterior</button>
+        <button (click)="goTo(result.page + 1)" [disabled]="result.page + 1 >= result.totalPages">Próxima</button>
+      </div>
+    }
+  </section>
+</div>

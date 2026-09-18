@@ -1,0 +1,32 @@
+<div class="account-page">
+  <section class="account-card auth-card">
+    <h1>{{ registering ? 'Cadastro de nutricionista' : 'Entrar' }}</h1>
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      @if (registering) {
+        <label>Nome
+          <input formControlName="name" autocomplete="name">
+          <span class="field-error">{{ errors().fields['name'] }}</span>
+        </label>
+      }
+      <label>E-mail
+        <input formControlName="email" type="email" autocomplete="username">
+        <span class="field-error">{{ errors().fields['email'] }}</span>
+      </label>
+      <label>Senha
+        <input formControlName="password" type="password" [autocomplete]="registering ? 'new-password' : 'current-password'">
+        <span class="field-error">{{ errors().fields['password'] }}</span>
+      </label>
+      @if (errors().detail) {
+        <p role="alert" class="error">{{ errors().detail }}</p>
+      }
+      <button type="submit" [disabled]="busy()">{{ busy() ? 'Enviando…' : registering ? 'Criar conta' : 'Entrar' }}</button>
+    </form>
+    <p>
+      @if (registering) {
+        Já tem conta? <a routerLink="/login">Entrar</a>
+      } @else {
+        <a routerLink="/cadastro">Criar conta de nutricionista</a>
+      }
+    </p>
+  </section>
+</div>

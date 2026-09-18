@@ -1,0 +1,107 @@
+<div class="account-page">
+  <div class="heading">
+    <h1>{{ id ? 'Editar paciente' : 'Novo paciente' }}</h1>
+    <a routerLink="/pacientes">Voltar para pacientes</a>
+  </div>
+
+  @if (loading()) {
+    <p role="status">Carregando paciente…</p>
+  }
+  @if (errors().detail) {
+    <p role="alert" class="error">{{ errors().detail }}</p>
+  }
+  @if (conflict()) {
+    <button type="button" (click)="load()">Recarregar paciente</button>
+  }
+  @if (saved()) {
+    <p role="status" class="notice">Paciente salvo.</p>
+  }
+
+  @if (!loading() && (!id || patient())) {
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <section class="account-card">
+        <h2>Dados pessoais</h2>
+        <div class="fields">
+          <label>Nome
+            <input formControlName="name" type="text">
+            <span class="field-error">{{ errors().fields['name'] }}</span>
+          </label>
+          <label>Data de nascimento
+            <input formControlName="birthDate" type="date">
+            <span class="field-error">{{ errors().fields['birthDate'] }}</span>
+          </label>
+          <label>Sexo
+            <select formControlName="sex">
+              <option [ngValue]="null">Não informado</option>
+              <option value="FEMALE">Feminino</option>
+              <option value="MALE">Masculino</option>
+            </select>
+            <span class="field-error">{{ errors().fields['sex'] }}</span>
+          </label>
+          <label>Telefone
+            <input formControlName="phone" type="tel">
+            <span class="field-error">{{ errors().fields['phone'] }}</span>
+          </label>
+          <label>E-mail
+            <input formControlName="email" type="email">
+            <span class="field-error">{{ errors().fields['email'] }}</span>
+          </label>
+          <label class="full">Observações
+            <textarea formControlName="notes"></textarea>
+            <span class="field-error">{{ errors().fields['notes'] }}</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="account-card">
+        <h2>Medidas atuais</h2>
+        <div class="fields">
+          <label>Peso (kg)
+            <input formControlName="weightKg" type="number" step="any">
+            <span class="field-error">{{ errors().fields['weightKg'] }}</span>
+          </label>
+          <label>Altura (cm)
+            <input formControlName="heightCm" type="number" step="any">
+            <span class="field-error">{{ errors().fields['heightCm'] }}</span>
+          </label>
+          <label>Atividade física · DRI
+            <select formControlName="driActivity">
+              <option [ngValue]="null">Não informada</option>
+              <option value="INACTIVE">Inativo</option>
+              <option value="LOW_ACTIVE">Pouco ativo</option>
+              <option value="ACTIVE">Ativo</option>
+              <option value="VERY_ACTIVE">Muito ativo</option>
+            </select>
+            <span class="field-error">{{ errors().fields['driActivity'] }}</span>
+          </label>
+          <label>Data das medidas
+            <input formControlName="measuredAt" type="date">
+            <span class="field-error">{{ errors().fields['measuredAt'] }}</span>
+          </label>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button type="submit" [disabled]="busy() || conflict()">{{ busy() ? 'Salvando…' : 'Salvar paciente' }}</button>
+        @if (patient(); as patient) {
+          <button type="button" [disabled]="busy() || conflict()" (click)="confirmation.set(true)">
+            {{ patient.archived ? 'Reativar paciente' : 'Arquivar paciente' }}
+          </button>
+        }
+      </div>
+    </form>
+
+    @if (confirmation()) {
+      <div class="confirm" role="alertdialog" aria-labelledby="archive-question" aria-modal="false">
+        <p id="archive-question">
+          {{ patient()?.archived ? 'Reativar este paciente?' : 'Arquivar este paciente?' }}
+          As alterações não salvas no formulário serão descartadas.
+        </p>
+        <div class="actions">
+          <button type="button" [disabled]="busy()" (click)="changeArchive()">Confirmar</button>
+          <button type="button" [disabled]="busy()" (click)="confirmation.set(false)">Cancelar</button>
+        </div>
+      </div>
+    }
+  }
+</div>

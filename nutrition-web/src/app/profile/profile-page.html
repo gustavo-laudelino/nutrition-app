@@ -1,0 +1,16 @@
+<div class="account-page">
+  <div class="heading">
+    <h1>Perfil</h1>
+  </div>
+  <section class="account-card">
+    <h2>Sua conta</h2>
+    @if (session.nutritionist(); as nutritionist) {
+      <dl class="profile-data">
+        <dt>Nome</dt><dd>{{ nutritionist.name }}</dd>
+        <dt>E-mail</dt><dd>{{ nutritionist.email }}</dd>
+      </dl>
+    } @else {
+      <p role="status">Carregando perfil…</p>
+    }
+  </section>
+</div>
