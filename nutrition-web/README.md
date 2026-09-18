@@ -23,7 +23,7 @@ Abra http://127.0.0.1:4200. `proxy.conf.cjs` encaminha `/api/**` para http://127
 6. **Total do dia:** barra de valor energético ("consumido / meta", restante e %), donut com a distribuição da energia dos macros (`macroEnergyShares`, calculado pelo backend) cercado por um anel com um trecho por meta de macro que enche conforme consumido / meta, e uma barra por macro (C, P, G) com "consumido / meta". Barras param na meta; excedente fica em tom forte com "Acima da meta em X". Passar o mouse ou dar foco em um macro (barra, fatia ou arco) destaca esse macro no donut, clareia os demais e mostra uma descrição com consumido, % da energia dos macros, meta e restante; com o mouse ela segue o cursor, e com o teclado fica ancorada sob o donut. Cores em variáveis CSS: `--energy` verde, `--carb` azul, `--protein` vermelho, `--fat` amarelo (paleta de referência original, restaurada em 17/09). Os valores vêm exclusivamente dos totais diários retornados pelo backend. Cada cartão mostra os quatro totais da refeição, sem metas próprias. A soma de valores exibidos por refeição pode diferir em centésimos do total diário, pois o backend arredonda apenas após somar as porções exatas.
 7. **Definir composição como meta:** botão no resumo do dia chama `POST /api/target-calculations/from-composition` e aplica a meta energética (= kcal consumidas) e os percentuais de macros equivalentes. Se já houver meta, pede confirmação mostrando a atual e a nova. Quando essa meta volta do backend com restante zero, roda uma animação (barras e donut de 0 ao valor, tremor e confetes, sem biblioteca), desativada com "reduzir movimento". As barras de macros ficam próximas de 100%, não exatas (kcal da tabela ≠ 4/4/9).
 
-**Opções de refeição:** no corpo da refeição aberta, abas "Opção 1", "Opção 2"… e "+" (cópia da opção aberta, até 5). Só a Opção 1 conta para metas, saldos e resumo do dia (regra do backend); as outras mostram "Totais da Opção N · não conta na meta". "Tornar opção 1" move a opção aberta para o início; "Remover opção" pede confirmação se tiver alimentos e renumera. A linha resumida mostra sempre a Opção 1, com "+N opções" junto ao nome. Adicionar, remover e editar alimentos atuam na opção aberta. Abas acessíveis (←/→).
+**Opções de refeição:** no corpo da refeição aberta, abas "Opção 1", "Opção 2"… e "+" (nova opção vazia, até 5). Abas renomeáveis por clique duplo, F2 ou menu do botão direito (Renomear / Definir como principal / Fechar opção); o nome é só da tela. Só a Opção 1 conta para metas, saldos e resumo do dia (regra do backend); as outras mostram "Totais da Opção N · não conta na meta". "Tornar opção 1" move a opção aberta para o início; "Remover opção" pede confirmação se tiver alimentos e renumera. A linha resumida mostra sempre a Opção 1, com "+N opções" junto ao nome. Adicionar, remover e editar alimentos atuam na opção aberta. Abas acessíveis (←/→).
 
 **Visual de aba de navegador (18/09):**
 - A aba ativa se funde com a folha da refeição.
@@ -88,7 +88,7 @@ Foi adicionado somente `@angular/router` 22.1.6. O `Shell` hospeda as rotas. As 
 | `/pacientes/novo` | Novo paciente |
 | `/pacientes/:id` | Editar paciente |
 
-Cadastro/login navegam para `/pacientes`. Token em memória e `sessionStorage`, nunca localStorage. Ao recarregar com sessão, `/api/auth/me` recupera o nome para a barra lateral; “Sair” limpa sessão e navega para login. Interceptor envia Bearer somente à própria origem em `/api/auth/me`, `/api/patients` e subrotas. Nunca envia ao planejamento nem a outros servidores. Guard redireciona sem token; 401 protegido limpa a sessão. O token expira em 8 horas, exigindo novo login. Logout não revoga o token no backend.
+Cadastro/login navegam para `/pacientes`. Token em memória e `sessionStorage`, nunca localStorage. Ao recarregar com sessão, `/api/auth/me` recupera o nome para a barra lateral; “Sair” limpa sessão e navega para login. Interceptor envia Bearer somente à própria origem em `/api/auth/me`, `/api/patients`, `/api/record-fields`, `/api/record-templates` e subrotas. Nunca envia ao planejamento nem a outros servidores. Guard redireciona sem token; 401 protegido limpa a sessão. O token expira em 8 horas, exigindo novo login. Logout não revoga o token no backend.
 
 Lista pesquisa a cada letra com debounce de 250 ms e cancela consultas anteriores; filtro ativos/arquivados reinicia na página zero. Exibe idade e data de medidas retornadas pelo backend. Formulário separa Dados pessoais e Medidas atuais e só envia ao salvar. Edição envia a versão recebida; 409 bloqueia novo salvamento até “Recarregar paciente”. Arquivar/reativar exige confirmação; alterações não salvas são descartadas quando a ação é confirmada. Erros por campo vêm da API. Não há fórmulas nem integração com a calculadora nessas telas.
 
@@ -101,3 +101,29 @@ Build de produção exige fallback das rotas Angular para `index.html`, além do
 `npm audit` apontou dois alertas em dependências de desenvolvimento já existentes: `vitest` 4.0.18 (crítico) e `@vitest/mocker` (moderado), com correção indicada em Vitest 4.1.11. Nenhuma atualização automática foi aplicada, preservando a lista e versões autorizadas; revisão dessa ferramenta de testes fica registrada como pendência separada.
 
 **Opções de refeição e nutrientes (18/09):** **94 testes** passando (`npm test`), incluindo 10 de opções (abas de navegador) e 4 de fibra/relatório/perfil de referência; `npm run build` passou. Conferido no navegador com a API nova sobre um PostgreSQL descartável com dados TACO reais (abas de opções, totais da Opção 2, fibra e relatório).
+
+## Prontuário: Oficina de modelos (18/09/2026)
+
+Especificação: [docs/features/prontuario-oficina.md](../docs/features/prontuario-oficina.md). Na barra lateral, "Prontuário" fica entre Pacientes e Planejamento. As rotas são protegidas e carregadas sob demanda (`loadComponent`), fora do pacote inicial:
+
+| Rota | Função |
+|---|---|
+| `/prontuario` | Redireciona para `/prontuario/modelos` |
+| `/prontuario/modelos` | Lista de modelos com as ações: novo (modelo inicial ou em branco), abrir, duplicar, tornar padrão e excluir com confirmação |
+| `/prontuario/modelos/:id` | Oficina; ao sair com alterações não salvas, pede confirmação (guard de rota e `beforeunload`) |
+
+Código em `app/records/`: `records-api.ts` (contratos), `template-list.*`, `oficina.*` e `field-preview.*`. Este último desenha cada tipo de campo, desabilitado na folha e preenchível na pré-visualização.
+
+**Oficina.** Área de trabalho delimitada, com a altura da janela e até 1440 px de largura. Tem três colunas, cada uma com rolagem própria:
+- **Ferramentas:** busca por palavras sem acento, categorias recolhíveis e o catálogo vindo da API. Um campo já usado aparece como "no modelo" e, se clicado, é selecionado na folha. Para adicionar, arraste para a folha ou tecle Enter/clique, e o campo entra no fim da seção aberta.
+- **Folha:**
+  - seções como abas: clique duplo ou F2 renomeia; botão direito abre Renomear / Mover para a esquerda / Mover para a direita / Excluir seção; arrastar reordena; "+" cria uma seção já em modo de renomear;
+  - excluir uma seção com campos pede confirmação e devolve os campos à caixa de ferramentas;
+  - os campos ficam numa grade que quebra linha, com larguras 1/3, 1/2, 2/3 ou inteira;
+  - arrastar reordena os campos; Alt+↑/↓ também; Delete remove;
+  - o botão direito no campo oferece "Mover para …" e "Remover do modelo".
+- **Propriedades:** tipo, categoria, resumo da configuração, aviso de sincronização com o cadastro, largura (bloqueada em tabela), altura (só texto longo), seção e remover. Sem campo selecionado, mostra os dados do modelo e "Tornar padrão".
+
+A barra superior tem o nome editável no lugar, o estado ("Tudo salvo" ou "Alterações não salvas"), **Pré-visualizar** (preenchível; nada é salvo nem enviado) e **Salvar**, que envia a estrutura inteira. Um erro 400 abre a seção do campo com problema e o destaca; um 409 oferece recarregar. Abaixo de 1024 px, aparece só o aviso "A Oficina precisa de uma tela maior.". O arrastar e soltar usa o `@angular/cdk`, que já estava no projeto, com `cdkDropListOrientation="mixed"` na grade.
+
+**Validação (18/09):** **110 testes** passando, sendo 14 da Oficina e da lista; `npm run build` também passa. No navegador, contra a API nova num PostgreSQL descartável, foram conferidos: lista, Oficina, arrastar da caixa para a folha, reordenar arrastando, salvar (ordem gravada no banco conferida) e pré-visualização, sem erros no console. O pacote inicial está em 609 kB, acima do aviso de 600 kB do `angular.json`. O crescimento vem do planejamento (renomear e menu das abas de opção); as telas do prontuário já ficam fora do pacote inicial.

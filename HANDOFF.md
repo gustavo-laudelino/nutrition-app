@@ -1,6 +1,6 @@
 # HANDOFF — Nutrition App
 
-Atualizado em **18/09/2026**, após implementar **opções de refeição** e o **modelo genérico de nutrientes com a TACO completa e o relatório de micronutrientes** (ver seção 14). Antes disso (17/09): login de nutricionista e cadastro de pacientes. Testes e builds concluídos; validação integrada com PostgreSQL e telas autenticadas **pendente por ausência de `JWT_SECRET`**. API parada; nenhuma migração executada. Planejamento preservado.
+Atualizado em **18/09/2026**, após implementar a **Oficina de modelos de prontuário** (épico Prontuário, feature 1; [especificação](docs/features/prontuario-oficina.md)). Antes, no mesmo dia: **opções de refeição** e o **modelo genérico de nutrientes com a TACO completa e o relatório de micronutrientes** (ver seção 14). Antes disso (17/09): login de nutricionista e cadastro de pacientes. Testes e builds concluídos; migrações V1–V3 aplicadas no PostgreSQL real e API rodando com o código novo (conferido em 18/09). Falta a conferência no navegador (item 0). A V4 da Oficina **ainda não rodou no banco real**: roda quando o usuário reiniciar a API (item 0a). Planejamento preservado.
 
 Este documento registra o estado entregue, as decisões de desenvolvimento e os cuidados para continuar em outra sessão. Os contratos detalhados estão em [nutrition-api/README.md](nutrition-api/README.md) e [nutrition-web/README.md](nutrition-web/README.md).
 
@@ -10,17 +10,13 @@ Em ordem de prioridade. Ler antes de qualquer trabalho novo.
 
 0. **(18/09) Opções de refeição e nutrientes/relatório: implementados** ([opções](docs/features/opcoes-de-refeicao.md), [nutrientes](docs/features/nutrientes-e-relatorio.md)); testes e builds passando; V2/V3 e contrato conferidos num PostgreSQL descartável.
 
-   **O usuário precisa, nesta ordem:**
-   1. Parar a API em execução.
-   2. Gerar o JAR (`mvn package`).
-   3. Subir o JAR novo. Isso aplica V2 (esquema de nutrientes) e V3 (≈13,5 mil valores TACO) no PostgreSQL real; se V1 ainda não rodou, ela roda antes, e isso exige `JWT_SECRET`.
+   **(18/09) API atualizada no banco real:** o esquema já está na versão 3 (V1–V3 aplicadas, `JWT_SECRET` configurado na execução do IntelliJ). A API roda pelo IntelliJ (`target/classes`, porta **8081**) com JDK 25; o `JAVA_HOME` do sistema é JDK 21 e não há `mvn` no PATH (usar o Maven 3.9.11 de `~/.m2/wrapper` com `JAVA_HOME` do JDK 25). Chamada real de `/api/diet-calculations` com `options` e `referenceProfile` conferida: 26 nutrientes e referência IOM/FNB.
 
-   **Importante:** o Angular atual envia `options`. Com a API antiga, o cálculo retorna 400 até a troca do JAR.
-
-   **Depois, conferir no navegador:**
+   **Falta conferir no navegador:**
    - abas de opções;
-   - "+" copiando a opção aberta;
-   - "Tornar opção 1" e remover opção;
+   - "+" criando opção vazia (alterado em 18/09; antes copiava a aberta);
+   - "Definir como principal" e fechar opção;
+   - renomear aba (clique duplo, F2 ou menu do botão direito) e o menu do botão direito;
    - barra de fibra;
    - relatório de micronutrientes, com e sem sexo/idade.
 
@@ -28,6 +24,12 @@ Em ordem de prioridade. Ler antes de qualquer trabalho novo.
    - os valores de referência IOM/FNB;
    - a interpretação dos tokens da TACO (vazio/`*` = não analisado);
    - o valor ilegível `",0,02"` (piridoxina do alimento 373), gravado como não analisado.
+
+0a. **(18/09) Oficina de modelos de prontuário: implementada por Claude** (a pedido do usuário, sem o Codex). [Especificação](docs/features/prontuario-oficina.md); 266 testes backend e 110 frontend passando, builds passando; V4 e o fluxo completo conferidos num PostgreSQL descartável e no navegador.
+   - **O usuário precisa reiniciar a API no IntelliJ**, para aplicar a V4 (`record_templates` e as tabelas-filhas) e carregar o catálogo. Durante esta sessão, `mvn test` recompilou `target/classes` com a API rodando: reiniciar resolve.
+   - Depois, conferir no navegador: Prontuário → "Começar pelo modelo inicial" → Oficina (arrastar, seções, propriedades, pré-visualizar, salvar).
+   - **O catálogo é genérico, a pedido do usuário.** O levantamento aprofundado das perguntas e opções reais será feito depois com o nutricionista. Os códigos de campo são permanentes; retirar um campo é marcá-lo como `deprecated`.
+   - Aviso de tamanho: o pacote inicial do web tem 609 kB, acima do aviso de 600 kB. O crescimento vem do planejamento (abas de opção); o prontuário já é carregado sob demanda.
 
 1. **Revisar a entrega do Codex de login e pacientes** contra os critérios de aceite de [docs/features/autenticacao-e-pacientes.md](docs/features/autenticacao-e-pacientes.md), sem alterar código primeiro, e trazer a lista de achados. O usuário já testou no navegador: login, cadastro e pacientes funcionam. Para rodar a API é preciso `JWT_SECRET` (≥ 32 bytes) nas variáveis de ambiente, além de `DB_URL`/`DB_USERNAME`/`DB_PASSWORD`. Se o IntelliJ não encontrar pacotes do Spring Security, recarregar o projeto Maven: o Codex compilou com o repositório temporário `%TEMP%/nutrition-maven-repository`.
 2. **Corrigir dois defeitos no formulário de paciente** (`nutrition-web/src/app/patients/patient-form.*`):
@@ -84,9 +86,18 @@ O desenvolvimento é organizado por **épico → features**. Tela não é featur
 | 1 | Login de nutricionista (JWT) + cadastro de pacientes (básico + medidas atuais) | **Implementada, testes/build passando; validação integrada pendente por ausência de `JWT_SECRET`** — [especificação](docs/features/autenticacao-e-pacientes.md); ver seção 14 |
 | 2 | Paciente cadastrado no planejamento (escolher e editar o cadastro pela calculadora) | **Implementada (17/09), testes/build passando**; validação no navegador com sessão pendente (exige conta do usuário) — [especificação](docs/features/paciente-no-planejamento.md) |
 | — | Plano alimentar persistido vinculado ao paciente | Futura; depende de 1 e da decisão do modelo de nutrientes |
-| 3 | Modelo genérico de nutrientes + TACO completa + relatório de micronutrientes | **Implementada (18/09)**, testes/build passando, V2/V3 conferidas em PostgreSQL descartável; aplicação no banco real pendente de subir o JAR novo — [especificação](docs/features/nutrientes-e-relatorio.md). Metas de micronutrientes com mínimo/máximo continuam futuras; aplicar ao cálculo **antes** de persistir planos |
+| 3 | Modelo genérico de nutrientes + TACO completa + relatório de micronutrientes | **Implementada (18/09)**, testes/build passando, V2/V3 conferidas em PostgreSQL descartável e aplicadas no banco real (18/09) — [especificação](docs/features/nutrientes-e-relatorio.md). Metas de micronutrientes com mínimo/máximo continuam futuras; aplicar ao cálculo **antes** de persistir planos |
 
 Decisões do usuário (17/09): JWT; cadastro aberto; paciente com dados básicos + medidas atuais; PostgreSQL oficial para nutricionistas/pacientes com Flyway; **sem vínculo com a tela de planejamento nesta entrega** (endpoints da calculadora continuam públicos). Dados de saúde são sensíveis (LGPD): apenas pacientes fictícios até haver revisão de segurança e uso real autorizado.
+
+### Épico novo (18/09): Prontuário
+
+| Ordem | Feature | Status |
+|---|---|---|
+| 1 | Oficina de modelos de prontuário (catálogo de campos do sistema, modelos do nutricionista montados por arrastar e soltar, seções como abas, pré-visualização) | **Implementada (18/09) por Claude**, testes/build passando; V4 pendente no banco real (reiniciar a API) — [especificação](docs/features/prontuario-oficina.md); catálogo genérico e modelo inicial **a validar com o nutricionista** |
+| 2 | Prontuário por consulta (histórico datado por paciente, cópia da estrutura do modelo, peso/altura sincronizam com o cadastro) | **Próxima (decisões de 18/09 registradas** na [especificação](docs/features/prontuario-oficina.md), seção "Decisões do usuário para a Feature 2"): rascunho/concluída; reabrir com registro; exclusão lógica da concluída, a confirmar com o CRN; entregas 2a (preencher/concluir/listar), 2b (evolução e consulta anterior) e 2c (abrir o planejamento a partir da consulta). Começar pela especificação detalhada da 2a, **em sessão nova** |
+
+Decisões do usuário (18/09): um prontuário por consulta; vários modelos por nutricionista, com modelo inicial e um padrão; campos só do catálogo do sistema (sem criar campos do zero); o nutricionista ajusta seção, posição e tamanho do campo; peso/altura sincronizam com o cadastro; Oficina como área de trabalho delimitada, com ferramentas ao lado (referência n8n, sem canvas infinito).
 
 ### Definição de "feature fechada"
 
@@ -238,7 +249,8 @@ Backend em `nutrition-api`: Java 25, Spring Boot 4.1.1, Maven, JAR; package `com
 | `food` | Entidade/repository e catálogo somente leitura; `FoodCatalog.nutrientDefinitions()` e `nutrientsOf(ids)` (18/09, uma consulta por dia) |
 | `nutrient` | Modelo genérico de nutrientes (18/09): entidades `Nutrient`/`FoodNutrient`, `NutrientStatus`, `NutrientCode` (códigos e unidades iguais à semente do V2), `NutrientReferences` (RDA/AI IOM/FNB do CSV versionado, validado ao iniciar) |
 | `shared` | `DecimalPrecision`, erro de cálculo com campo e `TextSearch` (busca por palavras sem acento/caixa, usada por alimentos e pacientes) |
-| `api` | Tradução de erros para ProblemDetail; `ApiFailure` (erro esperado com status e campo opcional, usado por auth e pacientes) |
+| `api` | Tradução de erros para ProblemDetail; `ApiFailure` (erro esperado com status e campo opcional, usado por auth, pacientes e prontuário) |
+| `record` | Prontuário (18/09): `RecordFieldCatalog` (catálogo e modelo inicial em `resources/records/*.json`, validados ao iniciar), `TemplateStructureRules`, entidade `RecordTemplate` (seções e campos como `@ElementCollection`), serviço e controller |
 
 Frontend em `nutrition-web`: Angular 22.1.6, TypeScript 6, RxJS; CLI 22.1.8 utiliza Vite no desenvolvimento. Não há Vite separado nem biblioteca visual. Router 22.1.6 adicionado; `Shell`, `routes.ts`, `auth/` e `patients/` isolam as telas novas, cada componente com template `.html` próprio; `api-errors.ts` e `account.css` (estilo das telas de conta/pacientes) ficam na raiz de `app/`. Planejamento (`app.ts`, `app.html`, `styles.css`, `app.spec.ts`) não foi alterado nesta entrega. `api.ts` contém contratos tipados; `app.ts`, `app.html` e `styles.css` implementam o fluxo com formulários reativos e signals.
 
@@ -256,6 +268,10 @@ Foi removido `EnergyTargetCalculator` e o antigo objeto `energy` de definição 
 - Campos, limites e respostas documentados no README da API e na especificação. Idade calculada no backend, sem restrição 19+ no cadastro. PUT exige versão; conflito → 409. Paciente alheio ou inexistente → 404, inclusive nas ações.
 - Senhas de cadastro: 8–72 caracteres, respeitando também limite técnico BCrypt de 72 bytes UTF-8 (400 explícito, sem truncamento). Login com senha errada curta também retorna 401 genérico.
 - `401/403` usam ProblemDetail com `errors`. Nenhum logging novo de senha/token/dados de paciente.
+
+### Prontuário: modelos (18/09, autenticados)
+
+`GET /api/record-fields` (catálogo sem depreciados); `GET/POST /api/record-templates` (lista; criar com `{name, source: BLANK|STARTER}`); `GET/PUT /api/record-templates/{id}` (PUT substitui nome e estrutura, exige `version`, 409 em conflito); `POST /{id}/duplicate`; `POST /{id}/default`; `DELETE /{id}`. Os detalhes e as regras de validação estão no [README da API](nutrition-api/README.md) e na [especificação](docs/features/prontuario-oficina.md).
 
 ### Calculadora (continua pública)
 
@@ -313,6 +329,8 @@ Correção posterior em 16/09: bolso passou de estimativa para prescrição dire
 
 ## 10. Estados da interface
 
+**Prontuário (18/09):** "Prontuário" na barra lateral; `/prontuario/modelos` (lista) e `/prontuario/modelos/:id` (Oficina), protegidas e carregadas sob demanda. A Oficina é uma área delimitada em três colunas: ferramentas, folha com seções em abas e propriedades. Salvar é explícito, e sair com alterações pede confirmação. Abaixo de 1024 px aparece só um aviso. Detalhes no [README do web](nutrition-web/README.md).
+
 **Telas novas (17/09):** `/login`, `/cadastro`; `/perfil`, `/pacientes`, `/pacientes/novo`, `/pacientes/:id` protegidas. **Barra lateral esquerda** (17/09, decisão do usuário) em todas as telas do nutricionista, com Perfil (dados da conta, somente leitura), Pacientes e Planejamento alimentar, nome do nutricionista e Sair; aparece só com sessão (sem sessão o planejamento abre sem barra) e vira barra superior abaixo de 860 px. `/` redireciona para `/planejamento`. O planejamento **é mantido em memória ao navegar pela barra** (`PlanningReuseStrategy`), mas não é salvo: recarregar descarta, e sair ou trocar de conta descarta o planejamento guardado. Busca busca com debounce 250 ms, ativos/arquivados, paginação, formulário Dados pessoais/Medidas atuais, salvar explícito e confirmação de arquivamento/reativação. 409 exige recarregar. Token em memória/sessionStorage; interceptor restrito à própria origem e às rotas protegidas da API. Guard e 401 redirecionam a login. `/planejamento` continua público por enquanto (direção: fará parte do acesso do nutricionista).
 
 **Planejamento preservado:**
@@ -346,12 +364,13 @@ Correção posterior em 16/09: bolso passou de estimativa para prescrição dire
   - `referenceProfile` sai do sexo/idade do perfil do planejamento (digitado ou do paciente cadastrado); mudar sexo/idade recalcula.
   - A coluna lateral (card + relatório) é `sticky` com rolagem própria a partir de 861 px.
   - Nenhum cálculo no Angular além de posições de desenho. Com API antiga (sem `nutrients`), o relatório fica vazio sem erro.
-- **Opções de refeição (17/09, decisões do usuário; [spec](docs/features/opcoes-de-refeicao.md)):** no corpo da refeição aberta, canto superior esquerdo, abas **"Opção 1"**, **"Opção 2"**… e **"+"**, que cria uma **cópia da opção aberta** (mesmos alimentos e quantidades, porções novas; marcações de quantidade inválida copiadas) e a abre; até 5 (o "+" desabilita). **Só a Opção 1 conta** para meta, macros, saldos, donut, "Definir composição como meta" (e fibra/micronutrientes), regra aplicada pelo backend; a aba 1 tem o selo "conta na meta" quando há mais de uma. Ao abrir outra opção aparece a linha "Totais da Opção N" (C/P/G/kcal do backend) com "não conta na meta". **Tornar opção 1** move a opção aberta para o início (as outras seguem na ordem); **Remover opção** existe quando há mais de uma, pede confirmação se tiver alimentos (removendo a 1, avisa que a Opção 2 passa a contar) e as abas renumeram. A linha resumida (recolhida ou não) mostra sempre a Opção 1 — valores e "N itens" — com o selo "+N opções" junto ao nome. Buscar/adicionar, remover alimento, quantidade, porção pelo nutriente e marcação de porção inválida atuam na opção aberta. Excluir refeição pede confirmação se **qualquer** opção tiver alimentos. Nome e horário são da refeição. Acessível: `tablist`/`tab`/`tabpanel`, `aria-selected`, ←/→ trocam de aba. Opções não são salvas (como todo o planejamento). **Visual de abas de navegador (18/09, pedido do usuário):**
+- **Opções de refeição (17/09, decisões do usuário; [spec](docs/features/opcoes-de-refeicao.md)):** no corpo da refeição aberta, canto superior esquerdo, abas **"Opção 1"**, **"Opção 2"**… e **"+"**, que cria uma **opção vazia** e a abre (18/09, decisão do usuário; antes criava uma cópia da opção aberta); até 5 (o "+" desabilita). **Só a Opção 1 conta** para meta, macros, saldos, donut, "Definir composição como meta" (e fibra/micronutrientes), regra aplicada pelo backend; a aba 1 tem o selo "conta na meta" quando há mais de uma. Ao abrir outra opção aparece a linha "Totais da Opção N" (C/P/G/kcal do backend) com "não conta na meta". **Tornar opção 1** move a opção aberta para o início (as outras seguem na ordem); **Remover opção** existe quando há mais de uma, pede confirmação se tiver alimentos (removendo a 1, avisa que a Opção 2 passa a contar) e as abas renumeram. A linha resumida (recolhida ou não) mostra sempre a Opção 1 — valores e "N itens" — com o selo "+N opções" junto ao nome. Buscar/adicionar, remover alimento, quantidade, porção pelo nutriente e marcação de porção inválida atuam na opção aberta. Excluir refeição pede confirmação se **qualquer** opção tiver alimentos. Nome e horário são da refeição. Acessível: `tablist`/`tab`/`tabpanel`, `aria-selected`, ←/→ trocam de aba. Opções não são salvas (como todo o planejamento). **Visual de abas de navegador (18/09, pedido do usuário):**
 - As abas ficam no topo da refeição aberta. A aba ativa se funde com a "folha" dos alimentos, com cantos côncavos, e há separadores entre as abas inativas.
 - Cada aba tem **×** para fechar, e o **+** fica logo depois da última.
 - Botão do meio do mouse ou Delete (com a aba em foco) também fecham.
 - Aba vazia fecha na hora. Aba com alimentos é aberta e pede confirmação ("Fechar a Opção N e seus alimentos?"). A única opção não tem ×.
-- **Arrastar uma aba reordena as opções** (Angular CDK). A que ficar em primeiro passa a contar na meta. "Tornar opção 1" continua como atalho à direita.
+- **Arrastar uma aba reordena as opções** (Angular CDK). A que ficar em primeiro passa a contar na meta. "Definir como principal" (antes "Tornar opção 1") continua como atalho à direita.
+- **Renomear e menu da aba (18/09, pedido do usuário):** clique duplo ou F2 renomeiam a aba no lugar (Enter/sair salva, Esc cancela, até 30 caracteres; em branco volta a "Opção N", que segue a posição). O botão direito abre o menu Renomear / Definir como principal / Fechar opção. O nome é só da tela, não vai para a API, e passa a ser usado em "Totais de …" e na confirmação de fechar.
 - A Opção 1 tem um ponto verde ("conta na meta").
 - O botão "Remover opção" foi substituído pelo ×.
 - Recarregar a página descarta tudo; não há localStorage ou persistência do planejamento.
@@ -375,7 +394,9 @@ Correção posterior em 16/09: bolso passou de estimativa para prescrição dire
   - Hibernate `validate` ok;
   - cálculo real com nutrientes e referência;
   - servidor removido depois.
-- **No banco real, V2/V3 ainda não rodaram.** Migrations aplicadas são imutáveis: correções de dados entram como V4+.
+- **No banco real, V1–V3 já foram aplicadas** (conferido em 18/09: esquema na versão 3). Migrations aplicadas são imutáveis: correções de dados entram como V4+.
+
+**Modelos de prontuário (18/09):** a V4 (`V4__create_record_templates.sql`) cria `record_templates` (índice único parcial: um padrão por nutricionista), `record_template_sections` e `record_template_fields`. A chave primária `(template_id, field_code)` garante que o campo aparece uma vez só por modelo; `field_code` aponta para o catálogo em arquivo, sem FK. Conferida num PostgreSQL descartável em 18/09 (V1–V4 e Hibernate `validate`). **No banco real, roda ao reiniciar a API.**
 
 **Nutricionistas/pacientes (17/09):** PostgreSQL oficial, V1 em `nutrition-api/src/main/resources/db/migration/V1__create_nutritionists_and_patients.sql`, criando somente as tabelas novas/índice. Flyway baseline-on-migrate=true, baseline-version=0; JPA validate preservado. Boot 4 tem módulo de autoconfiguração Flyway separado, não autorizado; por isso a configuração explícita usa `flyway-core`/plugin PostgreSQL e garante migrate antes de entityManagerFactory, preservando as demais dependências de inicialização. Chave JWT validada antes de migrar. Perfil test exclui DataSource/Flyway e configuração manual, com mocks de repository apenas em testes.
 

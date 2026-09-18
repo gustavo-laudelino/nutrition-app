@@ -10,10 +10,12 @@ Cada refeição (ex.: "Almoço") pode ter **mais de uma opção** de cardápio. 
 
 ## Decisões do usuário (17/09, não reabrir)
 
-1. **"+"** cria uma nova opção como **cópia da opção que está aberta** (mesmos alimentos e quantidades, porções novas) e a abre.
+1. **"+"** cria uma nova opção **vazia** (sem alimentos), depois da última, e a abre. (Alterado pelo usuário em 18/09; antes, a nova opção era cópia da opção aberta.)
 2. **Só a opção 1 conta** para tudo no resumo do dia: energia, macros, saldos, donut, "Definir composição como meta", **fibra e relatório de micronutrientes**. As demais opções mostram seus próprios totais de C/P/G/kcal dentro da refeição.
-3. **Remover:** qualquer opção pode ser removida (confirmação se tiver alimentos); se a Opção 1 sair, a seguinte vira a Opção 1. Cada opção tem **"Tornar opção 1"**, que a move para a primeira posição (as outras seguem na ordem).
+3. **Remover:** qualquer opção pode ser removida (confirmação se tiver alimentos); se a Opção 1 sair, a seguinte vira a Opção 1. Cada opção tem **"Definir como principal"** (antes "Tornar opção 1"), que a move para a primeira posição (as outras seguem na ordem).
 4. **Linha resumida (recolhida):** mostra **sempre a Opção 1** (C/P/G/kcal e itens), com um indicador "+N opções" quando houver outras.
+5. **Renomear (18/09):** clique duplo no nome da aba ou F2 abre a edição; **Enter** ou sair do campo salva e **Esc** cancela. Limite de 30 caracteres. Nome em branco, ou o próprio "Opção N" digitado de volta, restaura o nome padrão, que acompanha a posição. Um nome dado acompanha a opção quando ela é reordenada. O nome existe **só na tela**: não é enviado à API e não é salvo.
+6. **Menu do botão direito (18/09):** abre sobre a aba (ou sob ela, pela tecla de menu/Shift+F10), com **Renomear**, **Definir como principal** (exceto na primeira) e **Fechar opção** (exceto quando é a única). ↑/↓ navegam; Esc fecha e volta o foco à aba; clicar fora ou rolar também fecha.
 
 ## Regras
 
@@ -87,7 +89,7 @@ Resposta — cada refeição traz `options[]` na mesma ordem, cada uma com `food
 
 ### Testes (frontend)
 
-- "+" copia a opção aberta (novas chaves de porção) e abre a nova; limite de 5.
+- "+" cria uma opção vazia e a abre; limite de 5.
 - Adicionar/remover/editar quantidade e porção pelo nutriente afetam só a opção ativa.
 - Pedido envia `options` na ordem; resumo da refeição e dia refletem a Opção 1; indicador "+N opções".
 - "Tornar opção 1" reordena e recalcula; remover com confirmação e renumeração; não remove a única opção.
@@ -114,7 +116,7 @@ Isso substitui o botão "Remover opção" e tira "reordenar opções por arrasta
 
 ## Critérios de aceite
 
-- [x] Refeição com abas de opções, "+" copiando a opção aberta, até 5.
+- [x] Refeição com abas de opções, "+" criando opção vazia (18/09; antes copiava a aberta), até 5.
 - [x] Só a Opção 1 conta para meta, macros, donut, composição como meta, fibra e micronutrientes (regra no backend).
 - [x] "Tornar opção 1" e remover (com confirmação e renumeração) funcionando.
 - [x] Linha resumida sempre com a Opção 1 e indicador "+N opções".

@@ -25,6 +25,7 @@ Porta padrão 8081, configurável por `SERVER_PORT`. `mvn spring-boot:run` tamb�
 - `food`: catálogo PostgreSQL somente leitura, busca por palavras e paginação.
 - `shared`: precisão decimal, erro de cálculo com identificação de campo e `TextSearch` (busca por palavras sem acento/caixa).
 - `api`: tratamento HTTP de erros e `ApiFailure` (erro esperado com status e campo opcional).
+- `record`: prontuário (18/09). Inclui o catálogo de campos (`RecordFieldCatalog`, lido de `resources/records/`) e os modelos de prontuário do nutricionista (`RecordTemplate`, serviço e controller). Ver a seção "Oficina de modelos de prontuário".
 
 Cadastro de pacientes não se integra ao planejamento. Não há persistência de dietas nem atividade universal no perfil da calculadora.
 
@@ -199,6 +200,8 @@ Validação da feature Refeições (16/09): **137 testes backend** passando em `
 
 Histórico de 16/09: **141 testes backend**, incluindo composição como meta (percentuais, resíduo na maior fatia, rejeições e contrato HTTP).
 
+18/09: **266 testes backend** passando em `mvn test`. Os 41 novos são da Oficina: validação do catálogo e do modelo inicial (`RecordFieldCatalogTest`) e contrato dos modelos (`RecordTemplateApiTest`).
+
 
 ## Login de nutricionista e cadastro de pacientes (17/09/2026)
 
@@ -252,3 +255,29 @@ Exemplo (catálogo sintético dos testes, 28 g de carboidrato por 100 g): `{"foo
 - referências (limites 30/31, 50/51, 70/71, arquivo inválido);
 - soma de nutrientes (precisão, TRACE/NA como 0, parcial, sem dado, só a Opção 1, uma consulta);
 - contrato com `referenceProfile` e exemplo STRICT.
+
+## Oficina de modelos de prontuário (18/09/2026)
+
+Especificação: [docs/features/prontuario-oficina.md](../docs/features/prontuario-oficina.md). Endpoints **autenticados** (Bearer), sempre filtrados pelo nutricionista do token. Modelo alheio ou inexistente → 404 "Modelo não encontrado.".
+
+| Método | Caminho | Finalidade |
+|---|---|---|
+| GET | `/api/record-fields` | Catálogo de campos por categoria, sem os campos depreciados |
+| GET | `/api/record-templates` | Modelos do nutricionista (`id, name, isDefault, sectionCount, fieldCount, updatedAt`), com o padrão primeiro e depois por nome |
+| POST | `/api/record-templates` | `{name, source: BLANK \| STARTER}` → 201 com o modelo; o primeiro modelo vira padrão; limite de 30 |
+| GET | `/api/record-templates/{id}` | `{id, name, isDefault, version, updatedAt, sections: [{name, fields: [{code, width, textRows}]}]}` |
+| PUT | `/api/record-templates/{id}` | Substitui nome e estrutura; exige `version` (diferente → 409) |
+| POST | `/api/record-templates/{id}/duplicate` | Cópia com o nome "Cópia de …" (até 60 caracteres) → 201 |
+| POST | `/api/record-templates/{id}/default` | Torna padrão; o anterior deixa de ser |
+| DELETE | `/api/record-templates/{id}` | 204; se era o padrão, o modelo alterado mais recentemente vira padrão |
+
+**Catálogo.** Fica em `src/main/resources/records/field-catalog.json` e o modelo inicial em `starter-template.json`. Os dois são validados ao iniciar; qualquer inconsistência impede a aplicação de subir. Há 9 tipos de campo (`SHORT_TEXT`, `LONG_TEXT`, `NUMBER`, `DATE`, `YES_NO_DETAIL`, `SINGLE_CHOICE`, `MULTI_CHOICE`, `SCALE`, `TABLE`), e cada tipo aceita só as próprias configurações. Códigos de campo são permanentes: um campo que sair de uso recebe `"deprecated": true`, some da caixa de ferramentas e continua válido nos modelos que já o têm. **O conteúdo do catálogo é genérico e ainda precisa ser validado com o nutricionista.**
+
+**Regras da estrutura** (400 com o campo em `errors`, ex.: `sections[1].fields[0].code`):
+- nome do modelo e das seções obrigatório, até 60 caracteres;
+- de 1 a 20 seções; uma seção pode ficar vazia;
+- o código precisa existir no catálogo ("Campo inexistente no catálogo."), e cada campo entra uma vez só por modelo ("O campo já está no modelo.");
+- largura `THIRD`, `HALF`, `TWO_THIRDS` ou `FULL`; tabela só aceita `FULL`;
+- `textRows` é obrigatório (3, 5 ou 8) em texto longo e proibido nos demais tipos.
+
+**Banco.** A `V4__create_record_templates.sql` cria `record_templates` (com índice único parcial: no máximo um padrão por nutricionista), `record_template_sections` e `record_template_fields`. A chave primária `(template_id, field_code)` garante no banco que o campo aparece uma vez só por modelo. Em 18/09, a V4 e o fluxo completo foram conferidos num PostgreSQL descartável (Flyway V1–V4 e Hibernate `validate`). **No banco real, a V4 roda ao reiniciar a API.**
