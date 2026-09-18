@@ -82,6 +82,20 @@ class DietCalculatorTest {
         var result = calculator.calculate(new DietCalculationRequest(null,List.of()));
         assertThat(result.meals()).isEmpty();
         assertThat(result.totals().energyKcal().consumed()).isZero();
+        assertThat(result.macroEnergyShares()).isNull();
+    }
+    @Test void macroEnergySharesUseFourFourNineAndSumExactly100() {
+        // 42 g C × 4 = 168, 35.5 g P × 4 = 142, 5.5 g G × 9 = 49.5 → 359.5 kcal of macros.
+        var shares = calculator.calculate(singleMeal(null, List.of(portion(1,"150"), portion(2,"100")))).macroEnergyShares();
+        assertThat(shares.carbohydratePercent()).isEqualByComparingTo("46.7316");
+        assertThat(shares.proteinPercent()).isEqualByComparingTo("39.4993");
+        assertThat(shares.fatPercent()).isEqualByComparingTo("13.7691");
+        assertThat(shares.carbohydratePercent().add(shares.proteinPercent()).add(shares.fatPercent())).isEqualByComparingTo("100");
+    }
+    @Test void onlyFatStillHasShares() {
+        var shares = calculator.calculate(singleMeal(null, List.of(portion(3,"10")))).macroEnergyShares();
+        assertThat(shares.fatPercent()).isEqualByComparingTo("100");
+        assertThat(shares.carbohydratePercent()).isZero();
     }
     @Test void loadsAllFoodsOnlyOnceAcrossMeals() {
         var catalog = org.mockito.Mockito.spy(new DevelopmentFoodCatalog());

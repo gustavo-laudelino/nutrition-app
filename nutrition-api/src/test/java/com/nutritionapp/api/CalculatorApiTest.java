@@ -1,11 +1,13 @@
 package com.nutritionapp.api;
 
+import com.nutritionapp.RepositoryTestConfiguration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -14,6 +16,7 @@ import java.nio.file.Path;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@Import(RepositoryTestConfiguration.class)
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -139,10 +142,31 @@ class CalculatorApiTest {
           .content("{\"meals\":["+meal+","+meal+",{\"name\":\"C\",\"foods\":[{\"foodId\":1,\"quantityG\":1}]}]}"))
           .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("meals"));
     }
+    @Test void portionQuantityByNutrientIsPublicAndValidated() throws Exception {
+        mvc.perform(post("/api/portion-quantities").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"foodId\":1,\"nutrient\":\"CARBOHYDRATE\",\"amount\":40}"))
+          .andExpect(status().isOk()).andExpect(jsonPath("$.quantityG").value(142.9))
+          .andExpect(jsonPath("$.nutrient").value("CARBOHYDRATE")).andExpect(jsonPath("$.amount").value(40));
+        mvc.perform(post("/api/portion-quantities").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"foodId\":2,\"nutrient\":\"CARBOHYDRATE\",\"amount\":10}"))
+          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("nutrient"))
+          .andExpect(jsonPath("$.errors[0].message").value("Este alimento não tem carboidrato para dimensionar a porção."));
+        mvc.perform(post("/api/portion-quantities").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"foodId\":1,\"nutrient\":\"ENERGY\",\"amount\":0}"))
+          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("amount"))
+          .andExpect(jsonPath("$.errors[0].message").value("Informe uma quantidade maior que zero."));
+        mvc.perform(post("/api/portion-quantities").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"foodId\":1,\"nutrient\":\"FIBER\",\"amount\":10}"))
+          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("nutrient"));
+        mvc.perform(post("/api/portion-quantities").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"foodId\":999,\"nutrient\":\"FAT\",\"amount\":10}"))
+          .andExpect(status().isNotFound());
+    }
     @Test void nestedPortionErrorsAndMissingFoodInLaterMeal() throws Exception {
         mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
           .content("{\"meals\":[{\"name\":\"A\",\"foods\":[{\"foodId\":1,\"quantityG\":1},{\"foodId\":1,\"quantityG\":1},{\"foodId\":1,\"quantityG\":0}]}]}"))
-          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("meals[0].foods[2].quantityG"));
+          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("meals[0].foods[2].quantityG"))
+          .andExpect(jsonPath("$.errors[0].message").value("Informe uma quantidade maior que zero."));
         mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
           .content("{\"meals\":[{\"name\":\"A\",\"foods\":[]},{\"name\":\"B\",\"foods\":[{\"foodId\":999,\"quantityG\":1}]}]}"))
           .andExpect(status().isNotFound());

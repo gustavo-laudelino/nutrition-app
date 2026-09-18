@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import com.nutritionapp.food.FoodCatalog;
 import com.nutritionapp.food.FoodResponse;
+import com.nutritionapp.targets.MacroEnergyShares;
 import com.nutritionapp.targets.NutrientTargets;
 import org.springframework.stereotype.Service;
 import static com.nutritionapp.calculation.DietCalculationResponse.*;
@@ -46,7 +47,8 @@ public class DietCalculator {
         var totals = new Totals(balance(targets.energyKcal(), consumed.energyKcal()),
                 balance(targets.carbohydrateG(), consumed.carbohydrateG()),
                 balance(targets.proteinG(), consumed.proteinG()), balance(targets.fatG(), consumed.fatG()));
-        return new DietCalculationResponse(List.copyOf(meals), totals);
+        var shares = MacroEnergyShares.of(consumed.carbohydrateG(), consumed.proteinG(), consumed.fatG()).orElse(null);
+        return new DietCalculationResponse(List.copyOf(meals), totals, shares);
     }
 
     private Balance balance(BigDecimal target, BigDecimal consumed) {

@@ -21,6 +21,11 @@
       "remaining": 64.5
     }
   },
+  "macroEnergyShares": {
+    "carbohydratePercent": 46.7316,
+    "proteinPercent": 39.4993,
+    "fatPercent": 13.7691
+  },
   "meals": [
     {
       "name": "Almoço",

@@ -9,6 +9,9 @@ import jakarta.validation.constraints.*;
 public record DietCalculationRequest(
         @Valid NutrientTargets targets,
         @NotNull @Size(max = 20, message = "Informe no máximo 20 refeições.") List<@NotNull @Valid MealRequest> meals) {
-    public record FoodPortion(@NotNull @Positive Long foodId,
-            @NotNull @Positive @Digits(integer = 7, fraction = 3) BigDecimal quantityG) {}
+    public record FoodPortion(
+            @NotNull(message = "Informe o alimento.") @Positive(message = "Informe um alimento válido.") Long foodId,
+            @NotNull(message = "Informe a quantidade em gramas.")
+            @Positive(message = "Informe uma quantidade maior que zero.")
+            @Digits(integer = 7, fraction = 3, message = "Use até 7 inteiros e 3 decimais.") BigDecimal quantityG) {}
 }
