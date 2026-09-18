@@ -1,0 +1,233 @@
+{
+  "categories": [
+    {
+      "code": "CONSULTATION",
+      "name": "Consulta e rotina",
+      "fields": [
+        {"code": "consultation_reason", "label": "Motivo da consulta", "type": "LONG_TEXT"},
+        {"code": "patient_goals", "label": "Objetivos do paciente", "type": "LONG_TEXT"},
+        {"code": "occupation", "label": "Profissão / ocupação", "type": "SHORT_TEXT"},
+        {"code": "daily_routine", "label": "Rotina de trabalho e estudo", "type": "LONG_TEXT"},
+        {"code": "lives_with", "label": "Com quem mora", "type": "SHORT_TEXT"},
+        {"code": "meal_preparer", "label": "Quem prepara as refeições", "type": "SINGLE_CHOICE", "allowOther": true,
+          "options": [
+            {"code": "self", "label": "O próprio paciente"},
+            {"code": "family", "label": "Familiar"},
+            {"code": "employee", "label": "Funcionário(a)"},
+            {"code": "ready_made", "label": "Compra pronta"}
+          ]}
+      ]
+    },
+    {
+      "code": "CLINICAL_HISTORY",
+      "name": "Histórico clínico",
+      "fields": [
+        {"code": "diagnosed_conditions", "label": "Doenças diagnosticadas", "type": "MULTI_CHOICE", "allowOther": true,
+          "options": [
+            {"code": "diabetes", "label": "Diabetes"},
+            {"code": "hypertension", "label": "Hipertensão"},
+            {"code": "dyslipidemia", "label": "Dislipidemia"},
+            {"code": "hypothyroidism", "label": "Hipotireoidismo"},
+            {"code": "hyperthyroidism", "label": "Hipertireoidismo"},
+            {"code": "pcos", "label": "SOP"},
+            {"code": "kidney_disease", "label": "Doença renal"},
+            {"code": "liver_disease", "label": "Doença hepática"},
+            {"code": "gerd", "label": "DRGE"},
+            {"code": "ibs", "label": "Síndrome do intestino irritável"},
+            {"code": "celiac_disease", "label": "Doença celíaca"},
+            {"code": "ibd", "label": "Doença inflamatória intestinal"},
+            {"code": "anemia", "label": "Anemia"},
+            {"code": "anxiety_depression", "label": "Ansiedade ou depressão"}
+          ]},
+        {"code": "family_history", "label": "Histórico familiar", "type": "MULTI_CHOICE", "allowOther": true,
+          "options": [
+            {"code": "diabetes", "label": "Diabetes"},
+            {"code": "hypertension", "label": "Hipertensão"},
+            {"code": "dyslipidemia", "label": "Dislipidemia"},
+            {"code": "obesity", "label": "Obesidade"},
+            {"code": "cardiovascular_disease", "label": "Doença cardiovascular"},
+            {"code": "cancer", "label": "Câncer"},
+            {"code": "thyroid_disease", "label": "Doença da tireoide"},
+            {"code": "kidney_disease", "label": "Doença renal"}
+          ]},
+        {"code": "medications", "label": "Medicamentos em uso", "type": "LONG_TEXT"},
+        {"code": "supplements", "label": "Suplementos em uso", "type": "LONG_TEXT"},
+        {"code": "surgeries", "label": "Cirurgias", "type": "YES_NO_DETAIL", "detailLabel": "Quais e quando?"},
+        {"code": "food_allergies", "label": "Alergias alimentares", "type": "YES_NO_DETAIL", "detailLabel": "Quais?"},
+        {"code": "food_intolerances", "label": "Intolerâncias alimentares", "type": "MULTI_CHOICE", "allowOther": true,
+          "options": [
+            {"code": "lactose", "label": "Lactose"},
+            {"code": "gluten", "label": "Glúten"},
+            {"code": "fructose", "label": "Frutose"}
+          ]},
+        {"code": "previous_nutrition_care", "label": "Acompanhamento nutricional ou dietas anteriores", "type": "LONG_TEXT"},
+        {"code": "weight_history", "label": "Histórico de peso", "type": "LONG_TEXT"},
+        {"code": "blood_pressure", "label": "Pressão arterial", "help": "Ex.: 120/80 mmHg", "type": "SHORT_TEXT", "maxLength": 20}
+      ]
+    },
+    {
+      "code": "SYMPTOMS",
+      "name": "Sinais, sintomas e sono",
+      "fields": [
+        {"code": "appetite", "label": "Apetite", "type": "SINGLE_CHOICE",
+          "options": [
+            {"code": "increased", "label": "Aumentado"},
+            {"code": "normal", "label": "Normal"},
+            {"code": "decreased", "label": "Diminuído"}
+          ]},
+        {"code": "chewing", "label": "Mastigação", "type": "SINGLE_CHOICE",
+          "options": [
+            {"code": "adequate", "label": "Adequada"},
+            {"code": "fast", "label": "Rápida"},
+            {"code": "difficult", "label": "Com dificuldade"}
+          ]},
+        {"code": "bowel_frequency", "label": "Frequência de evacuação", "type": "SINGLE_CHOICE",
+          "options": [
+            {"code": "more_than_daily", "label": "Mais de 1 vez ao dia"},
+            {"code": "daily", "label": "1 vez ao dia"},
+            {"code": "every_2_3_days", "label": "A cada 2 ou 3 dias"},
+            {"code": "less_than_twice_weekly", "label": "Menos de 2 vezes por semana"}
+          ]},
+        {"code": "stool_bristol", "label": "Consistência das fezes (escala de Bristol)", "type": "SINGLE_CHOICE",
+          "options": [
+            {"code": "type_1", "label": "Tipo 1: caroços duros e separados"},
+            {"code": "type_2", "label": "Tipo 2: formato de salsicha, com caroços"},
+            {"code": "type_3", "label": "Tipo 3: salsicha com rachaduras na superfície"},
+            {"code": "type_4", "label": "Tipo 4: salsicha lisa e macia"},
+            {"code": "type_5", "label": "Tipo 5: pedaços macios com bordas definidas"},
+            {"code": "type_6", "label": "Tipo 6: pedaços moles com bordas irregulares"},
+            {"code": "type_7", "label": "Tipo 7: aquosa, sem pedaços sólidos"}
+          ]},
+        {"code": "gi_symptoms", "label": "Sintomas gastrointestinais", "type": "MULTI_CHOICE", "allowOther": true,
+          "options": [
+            {"code": "heartburn", "label": "Azia"},
+            {"code": "reflux", "label": "Refluxo"},
+            {"code": "nausea", "label": "Náusea"},
+            {"code": "bloating", "label": "Distensão ou gases"},
+            {"code": "abdominal_pain", "label": "Dor abdominal"},
+            {"code": "constipation", "label": "Constipação"},
+            {"code": "diarrhea", "label": "Diarreia"}
+          ]},
+        {"code": "water_intake", "label": "Consumo de água", "type": "NUMBER", "unit": "L/dia", "min": 0, "max": 10, "decimals": 1},
+        {"code": "sleep_hours", "label": "Horas de sono por noite", "type": "NUMBER", "unit": "h", "min": 0, "max": 24, "decimals": 1},
+        {"code": "sleep_quality", "label": "Qualidade do sono", "type": "SCALE", "min": 0, "max": 10, "minLabel": "Muito ruim", "maxLabel": "Excelente"},
+        {"code": "stress_level", "label": "Nível de estresse", "type": "SCALE", "min": 0, "max": 10, "minLabel": "Nenhum", "maxLabel": "Extremo"},
+        {"code": "menstrual_cycle", "label": "Ciclo menstrual", "type": "SINGLE_CHOICE",
+          "options": [
+            {"code": "regular", "label": "Regular"},
+            {"code": "irregular", "label": "Irregular"},
+            {"code": "absent", "label": "Ausente"},
+            {"code": "menopause", "label": "Menopausa"},
+            {"code": "not_applicable", "label": "Não se aplica"}
+          ]}
+      ]
+    },
+    {
+      "code": "LIFESTYLE",
+      "name": "Estilo de vida",
+      "fields": [
+        {"code": "physical_activity", "label": "Pratica atividade física", "type": "YES_NO_DETAIL", "detailLabel": "Modalidade, frequência e duração"},
+        {"code": "smoking", "label": "Tabagismo", "type": "SINGLE_CHOICE",
+          "options": [
+            {"code": "never", "label": "Nunca fumou"},
+            {"code": "former", "label": "Ex-fumante"},
+            {"code": "current", "label": "Fumante"}
+          ]},
+        {"code": "alcohol", "label": "Consumo de álcool", "type": "SINGLE_CHOICE",
+          "options": [
+            {"code": "none", "label": "Não consome"},
+            {"code": "occasionally", "label": "Ocasionalmente"},
+            {"code": "weekly", "label": "Semanalmente"},
+            {"code": "daily", "label": "Diariamente"}
+          ]}
+      ]
+    },
+    {
+      "code": "EATING_HABITS",
+      "name": "Hábitos alimentares",
+      "fields": [
+        {"code": "dietary_pattern", "label": "Padrão alimentar", "type": "SINGLE_CHOICE", "allowOther": true,
+          "options": [
+            {"code": "omnivore", "label": "Onívoro"},
+            {"code": "vegetarian", "label": "Vegetariano"},
+            {"code": "vegan", "label": "Vegano"}
+          ]},
+        {"code": "meals_per_day", "label": "Refeições por dia", "type": "NUMBER", "min": 0, "max": 12, "decimals": 0},
+        {"code": "eats_out", "label": "Refeições fora de casa", "type": "SINGLE_CHOICE",
+          "options": [
+            {"code": "never", "label": "Nunca"},
+            {"code": "rarely", "label": "Raramente"},
+            {"code": "weekly", "label": "Algumas vezes por semana"},
+            {"code": "daily", "label": "Diariamente"}
+          ]},
+        {"code": "hungriest_time", "label": "Horário de maior fome", "type": "SHORT_TEXT"},
+        {"code": "food_preferences", "label": "Preferências alimentares", "type": "LONG_TEXT"},
+        {"code": "food_aversions", "label": "Aversões alimentares", "type": "LONG_TEXT"},
+        {"code": "binge_episodes", "label": "Episódios de compulsão alimentar", "type": "YES_NO_DETAIL", "detailLabel": "Com que frequência e em que situações?"},
+        {"code": "recall_24h", "label": "Recordatório de 24 horas", "type": "TABLE",
+          "columns": [
+            {"code": "time", "label": "Horário"},
+            {"code": "meal", "label": "Refeição"},
+            {"code": "foods", "label": "Alimentos e quantidades"},
+            {"code": "place", "label": "Local"}
+          ]},
+        {"code": "usual_day", "label": "Dia alimentar habitual", "type": "TABLE",
+          "columns": [
+            {"code": "time", "label": "Horário"},
+            {"code": "meal", "label": "Refeição"},
+            {"code": "foods", "label": "Alimentos e quantidades"},
+            {"code": "place", "label": "Local"}
+          ]}
+      ]
+    },
+    {
+      "code": "ANTHROPOMETRY",
+      "name": "Antropometria",
+      "fields": [
+        {"code": "weight_kg", "label": "Peso", "type": "NUMBER", "unit": "kg", "min": 1, "max": 500, "decimals": 3, "sync": "PATIENT_WEIGHT"},
+        {"code": "height_cm", "label": "Altura", "type": "NUMBER", "unit": "cm", "min": 30, "max": 300, "decimals": 2, "sync": "PATIENT_HEIGHT"},
+        {"code": "waist_circumference", "label": "Circunferência da cintura", "type": "NUMBER", "unit": "cm", "min": 0, "max": 1000, "decimals": 1},
+        {"code": "hip_circumference", "label": "Circunferência do quadril", "type": "NUMBER", "unit": "cm", "min": 0, "max": 1000, "decimals": 1},
+        {"code": "arm_circumference", "label": "Circunferência do braço", "type": "NUMBER", "unit": "cm", "min": 0, "max": 1000, "decimals": 1},
+        {"code": "calf_circumference", "label": "Circunferência da panturrilha", "type": "NUMBER", "unit": "cm", "min": 0, "max": 1000, "decimals": 1},
+        {"code": "neck_circumference", "label": "Circunferência do pescoço", "type": "NUMBER", "unit": "cm", "min": 0, "max": 1000, "decimals": 1},
+        {"code": "skinfold_triceps", "label": "Dobra cutânea tricipital", "type": "NUMBER", "unit": "mm", "min": 0, "max": 1000, "decimals": 1},
+        {"code": "skinfold_biceps", "label": "Dobra cutânea bicipital", "type": "NUMBER", "unit": "mm", "min": 0, "max": 1000, "decimals": 1},
+        {"code": "skinfold_subscapular", "label": "Dobra cutânea subescapular", "type": "NUMBER", "unit": "mm", "min": 0, "max": 1000, "decimals": 1},
+        {"code": "skinfold_suprailiac", "label": "Dobra cutânea suprailíaca", "type": "NUMBER", "unit": "mm", "min": 0, "max": 1000, "decimals": 1},
+        {"code": "skinfold_abdominal", "label": "Dobra cutânea abdominal", "type": "NUMBER", "unit": "mm", "min": 0, "max": 1000, "decimals": 1},
+        {"code": "skinfold_thigh", "label": "Dobra cutânea da coxa", "type": "NUMBER", "unit": "mm", "min": 0, "max": 1000, "decimals": 1},
+        {"code": "skinfold_chest", "label": "Dobra cutânea peitoral", "type": "NUMBER", "unit": "mm", "min": 0, "max": 1000, "decimals": 1},
+        {"code": "skinfold_midaxillary", "label": "Dobra cutânea axilar média", "type": "NUMBER", "unit": "mm", "min": 0, "max": 1000, "decimals": 1},
+        {"code": "body_composition_method", "label": "Método de avaliação da composição corporal", "type": "SINGLE_CHOICE", "allowOther": true,
+          "options": [
+            {"code": "bioimpedance", "label": "Bioimpedância"},
+            {"code": "skinfolds", "label": "Dobras cutâneas"},
+            {"code": "dexa", "label": "DEXA"}
+          ]},
+        {"code": "body_fat_percent", "label": "Percentual de gordura (informado)", "help": "Valor obtido pelo método informado", "type": "NUMBER", "unit": "%", "min": 0, "max": 100, "decimals": 1}
+      ]
+    },
+    {
+      "code": "EXAMS",
+      "name": "Exames",
+      "fields": [
+        {"code": "lab_results", "label": "Exames bioquímicos", "type": "TABLE",
+          "columns": [
+            {"code": "exam", "label": "Exame"},
+            {"code": "result", "label": "Resultado"},
+            {"code": "unit", "label": "Unidade"},
+            {"code": "date", "label": "Data"}
+          ]}
+      ]
+    },
+    {
+      "code": "CONDUCT",
+      "name": "Conduta",
+      "fields": [
+        {"code": "professional_notes", "label": "Observações do profissional", "type": "LONG_TEXT"},
+        {"code": "conduct", "label": "Conduta", "type": "LONG_TEXT"}
+      ]
+    }
+  ]
+}

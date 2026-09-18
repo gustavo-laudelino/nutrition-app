@@ -20,6 +20,10 @@ public class ApiFailure extends RuntimeException {
         this.field = field;
     }
 
+    public String field() {
+        return field;
+    }
+
     /** Same shape as the other API errors: {@code errors} is empty when no field is involved. */
     public ProblemDetail problem() {
         var problem = ProblemDetail.forStatusAndDetail(HttpStatusCode.valueOf(status), getMessage());

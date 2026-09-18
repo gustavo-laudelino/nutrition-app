@@ -1,0 +1,58 @@
+{
+  "name": "Primeira consulta",
+  "sections": [
+    {"name": "Anamnese", "fields": [
+      {"code": "consultation_reason", "width": "FULL", "textRows": 3},
+      {"code": "patient_goals", "width": "FULL", "textRows": 3},
+      {"code": "occupation", "width": "HALF"},
+      {"code": "lives_with", "width": "HALF"},
+      {"code": "daily_routine", "width": "FULL", "textRows": 3},
+      {"code": "meal_preparer", "width": "HALF"}
+    ]},
+    {"name": "Histórico clínico", "fields": [
+      {"code": "diagnosed_conditions", "width": "FULL"},
+      {"code": "family_history", "width": "FULL"},
+      {"code": "medications", "width": "HALF", "textRows": 3},
+      {"code": "supplements", "width": "HALF", "textRows": 3},
+      {"code": "surgeries", "width": "HALF"},
+      {"code": "food_allergies", "width": "HALF"},
+      {"code": "food_intolerances", "width": "FULL"},
+      {"code": "weight_history", "width": "FULL", "textRows": 3}
+    ]},
+    {"name": "Sintomas e sono", "fields": [
+      {"code": "appetite", "width": "THIRD"},
+      {"code": "chewing", "width": "THIRD"},
+      {"code": "bowel_frequency", "width": "THIRD"},
+      {"code": "stool_bristol", "width": "FULL"},
+      {"code": "gi_symptoms", "width": "FULL"},
+      {"code": "water_intake", "width": "THIRD"},
+      {"code": "sleep_hours", "width": "THIRD"},
+      {"code": "sleep_quality", "width": "THIRD"},
+      {"code": "stress_level", "width": "HALF"},
+      {"code": "menstrual_cycle", "width": "HALF"}
+    ]},
+    {"name": "Estilo de vida e hábitos", "fields": [
+      {"code": "physical_activity", "width": "FULL"},
+      {"code": "smoking", "width": "HALF"},
+      {"code": "alcohol", "width": "HALF"},
+      {"code": "dietary_pattern", "width": "THIRD"},
+      {"code": "meals_per_day", "width": "THIRD"},
+      {"code": "eats_out", "width": "THIRD"},
+      {"code": "food_preferences", "width": "HALF", "textRows": 3},
+      {"code": "food_aversions", "width": "HALF", "textRows": 3},
+      {"code": "recall_24h", "width": "FULL"}
+    ]},
+    {"name": "Antropometria", "fields": [
+      {"code": "weight_kg", "width": "THIRD"},
+      {"code": "height_cm", "width": "THIRD"},
+      {"code": "waist_circumference", "width": "THIRD"},
+      {"code": "hip_circumference", "width": "THIRD"},
+      {"code": "arm_circumference", "width": "THIRD"},
+      {"code": "calf_circumference", "width": "THIRD"}
+    ]},
+    {"name": "Conduta", "fields": [
+      {"code": "professional_notes", "width": "FULL", "textRows": 5},
+      {"code": "conduct", "width": "FULL", "textRows": 5}
+    ]}
+  ]
+}

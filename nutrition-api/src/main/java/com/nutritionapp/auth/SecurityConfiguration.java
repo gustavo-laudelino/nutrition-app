@@ -39,7 +39,8 @@ public class SecurityConfiguration {
             "/api/auth/register", "/api/auth/login",
             "/api/foods/**", "/api/energy-estimates", "/api/energy-prescriptions/**",
             "/api/target-calculations/**", "/api/diet-calculations", "/api/portion-quantities", "/error"};
-    private static final String[] PROTECTED_PATHS = {"/api/auth/me", "/api/patients/**"};
+    private static final String[] PROTECTED_PATHS = {"/api/auth/me", "/api/patients/**",
+            "/api/record-fields", "/api/record-templates/**"};
 
     /** Fails startup without a secret of at least 32 bytes; there is no default outside the test profile. */
     @Bean
