@@ -29,40 +29,150 @@
   "meals": [
     {
       "name": "Almoço",
-      "foods": [
-        {
-          "foodId": 1,
-          "name": "Alimento sintético A",
-          "source": "SYNTHETIC_DEVELOPMENT",
-          "sourceCode": null,
-          "quantityG": 150,
-          "nutrients": {
-            "energyKcal": 195,
-            "carbohydrateG": 42,
-            "proteinG": 4.5,
-            "fatG": 1.5
-          }
-        },
-        {
-          "foodId": 2,
-          "name": "Alimento sintético B",
-          "source": "SYNTHETIC_DEVELOPMENT",
-          "sourceCode": null,
-          "quantityG": 100,
-          "nutrients": {
-            "energyKcal": 165,
-            "carbohydrateG": 0,
-            "proteinG": 31,
-            "fatG": 4
-          }
-        }
-      ],
       "totals": {
         "energyKcal": 360,
         "carbohydrateG": 42,
         "proteinG": 35.5,
         "fatG": 5.5
-      }
+      },
+      "options": [
+        {
+          "foods": [
+            {
+              "foodId": 1,
+              "name": "Alimento sintético A",
+              "source": "SYNTHETIC_DEVELOPMENT",
+              "sourceCode": null,
+              "quantityG": 150,
+              "nutrients": {
+                "energyKcal": 195,
+                "carbohydrateG": 42,
+                "proteinG": 4.5,
+                "fatG": 1.5
+              }
+            },
+            {
+              "foodId": 2,
+              "name": "Alimento sintético B",
+              "source": "SYNTHETIC_DEVELOPMENT",
+              "sourceCode": null,
+              "quantityG": 100,
+              "nutrients": {
+                "energyKcal": 165,
+                "carbohydrateG": 0,
+                "proteinG": 31,
+                "fatG": 4
+              }
+            }
+          ],
+          "totals": {
+            "energyKcal": 360,
+            "carbohydrateG": 42,
+            "proteinG": 35.5,
+            "fatG": 5.5
+          }
+        },
+        {
+          "foods": [
+            {
+              "foodId": 3,
+              "name": "Alimento sintético C",
+              "source": "SYNTHETIC_DEVELOPMENT",
+              "sourceCode": null,
+              "quantityG": 10,
+              "nutrients": {
+                "energyKcal": 90,
+                "carbohydrateG": 0,
+                "proteinG": 0,
+                "fatG": 10
+              }
+            }
+          ],
+          "totals": {
+            "energyKcal": 90,
+            "carbohydrateG": 0,
+            "proteinG": 0,
+            "fatG": 10
+          }
+        }
+      ]
     }
-  ]
+  ],
+  "nutrients": [
+    {
+      "code": "FIBER",
+      "name": "Fibra alimentar",
+      "unit": "g",
+      "category": "FIBER",
+      "inReport": false,
+      "consumed": 4.05,
+      "status": "COMPLETE",
+      "foodsWithoutData": 0,
+      "reference": {
+        "amount": 25,
+        "type": "AI",
+        "percent": 16.2
+      }
+    },
+    {
+      "code": "CALCIUM",
+      "name": "Cálcio",
+      "unit": "mg",
+      "category": "MINERAL",
+      "inReport": true,
+      "consumed": 17.5,
+      "status": "COMPLETE",
+      "foodsWithoutData": 0,
+      "reference": {
+        "amount": 1000,
+        "type": "RDA",
+        "percent": 1.8
+      }
+    },
+    {
+      "code": "IRON",
+      "name": "Ferro",
+      "unit": "mg",
+      "category": "MINERAL",
+      "inReport": true,
+      "consumed": 1.2,
+      "status": "COMPLETE",
+      "foodsWithoutData": 0,
+      "reference": {
+        "amount": 18,
+        "type": "RDA",
+        "percent": 6.7
+      }
+    },
+    {
+      "code": "VITAMIN_C",
+      "name": "Vitamina C",
+      "unit": "mg",
+      "category": "VITAMIN",
+      "inReport": true,
+      "consumed": 0,
+      "status": "PARTIAL",
+      "foodsWithoutData": 1,
+      "reference": {
+        "amount": 75,
+        "type": "RDA",
+        "percent": 0
+      }
+    },
+    {
+      "code": "CHOLESTEROL",
+      "name": "Colesterol",
+      "unit": "mg",
+      "category": "LIPID",
+      "inReport": true,
+      "consumed": 80,
+      "status": "COMPLETE",
+      "foodsWithoutData": 0,
+      "reference": null
+    }
+  ],
+  "referenceSource": {
+    "name": "Food and Nutrition Board / IOM (DRI)",
+    "profile": "Mulher, 19–30 anos"
+  }
 }

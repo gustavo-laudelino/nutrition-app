@@ -22,7 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 class CalculatorApiTest {
     @Autowired private MockMvc mvc;
-    private static final String FOODS = "\"meals\":[{\"name\":\"Almoço\",\"foods\":[{\"foodId\":1,\"quantityG\":150},{\"foodId\":2,\"quantityG\":100}]}]";
+    private static final String FOODS = "\"meals\":[{\"name\":\"Almoço\",\"options\":[{\"foods\":[{\"foodId\":1,\"quantityG\":150},{\"foodId\":2,\"quantityG\":100}]}]}]";
     @Test void exampleMatchesCompleteResponse() throws Exception {
         mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
                 .content(Files.readString(Path.of("examples/diet-calculation-request.json"))))
@@ -33,7 +33,7 @@ class CalculatorApiTest {
             .andExpect(status().isOk()).andExpect(jsonPath("$.totals.energyKcal.consumed").value(360))
             .andExpect(jsonPath("$.totals.energyKcal.target").value(org.hamcrest.Matchers.nullValue()))
             .andExpect(jsonPath("$.totals.energyKcal.remaining").value(org.hamcrest.Matchers.nullValue()))
-            .andExpect(jsonPath("$.meals[0].foods[0].nutrients.carbohydrateG").value(42));
+            .andExpect(jsonPath("$.meals[0].options[0].foods[0].nutrients.carbohydrateG").value(42));
     }
     @Test void onlyManualEnergyTarget() throws Exception {
         mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON).content("{\"targets\":{\"energyKcal\":2000},"+FOODS+"}"))
@@ -84,34 +84,34 @@ class CalculatorApiTest {
           .andExpect(jsonPath("$.errors").isArray());
     }
     @ParameterizedTest @ValueSource(strings={
-        "{}", "{\"meals\": [{\"name\": \"Almoço\", \"foods\": null}]}", "{\"meals\": [{\"name\": \"Almoço\", \"foods\": [null]}]}",
-        "{\"meals\": [{\"name\": \"Almoço\", \"foods\": [{\"foodId\": 1, \"quantityG\": 0}]}]}",
-        "{\"meals\": [{\"name\": \"Almoço\", \"foods\": [{\"foodId\": 1, \"quantityG\": -1}]}]}",
-        "{\"meals\": [{\"name\": \"Almoço\", \"foods\": [{\"foodId\": 1, \"quantityG\": null}]}]}",
-        "{\"meals\": [{\"name\": \"Almoço\", \"foods\": [{\"foodId\": 0, \"quantityG\": 100}]}]}",
-        "{\"meals\": [{\"name\": \"Almoço\", \"foods\": [{\"foodId\": null, \"quantityG\": 100}]}]}",
-        "{\"meals\": [{\"name\": \"Almoço\", \"foods\": [{\"foodId\": 1, \"quantityG\": 1.0001}]}]}",
-        "{\"targets\": {\"energyKcal\": 0}, \"meals\": [{\"name\": \"Almoço\", \"foods\": []}]}",
-        "{\"targets\": {\"proteinG\": -1}, \"meals\": [{\"name\": \"Almoço\", \"foods\": []}]}"})
+        "{}", "{\"meals\": [{\"name\": \"Almoço\", \"options\":[{\"foods\": null}]}]}", "{\"meals\": [{\"name\": \"Almoço\", \"options\":[{\"foods\": [null]}]}]}",
+        "{\"meals\": [{\"name\": \"Almoço\", \"options\":[{\"foods\": [{\"foodId\": 1, \"quantityG\": 0}]}]}]}",
+        "{\"meals\": [{\"name\": \"Almoço\", \"options\":[{\"foods\": [{\"foodId\": 1, \"quantityG\": -1}]}]}]}",
+        "{\"meals\": [{\"name\": \"Almoço\", \"options\":[{\"foods\": [{\"foodId\": 1, \"quantityG\": null}]}]}]}",
+        "{\"meals\": [{\"name\": \"Almoço\", \"options\":[{\"foods\": [{\"foodId\": 0, \"quantityG\": 100}]}]}]}",
+        "{\"meals\": [{\"name\": \"Almoço\", \"options\":[{\"foods\": [{\"foodId\": null, \"quantityG\": 100}]}]}]}",
+        "{\"meals\": [{\"name\": \"Almoço\", \"options\":[{\"foods\": [{\"foodId\": 1, \"quantityG\": 1.0001}]}]}]}",
+        "{\"targets\": {\"energyKcal\": 0}, \"meals\": [{\"name\": \"Almoço\", \"options\":[{\"foods\": []}]}]}",
+        "{\"targets\": {\"proteinG\": -1}, \"meals\": [{\"name\": \"Almoço\", \"options\":[{\"foods\": []}]}]}"})
     void validatesComposition(String body) throws Exception {
         mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON).content(body))
           .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors").isArray());
     }
-    @ParameterizedTest @ValueSource(strings={"{","null","{\"targetKcal\": 2000, \"meals\": [{\"name\": \"Almoço\", \"foods\": []}]}","{\"meals\": [{\"name\": \"Almoço\", \"foods\": [{\"foodId\": 1.5, \"quantityG\": 100}]}]}"})
+    @ParameterizedTest @ValueSource(strings={"{","null","{\"targetKcal\": 2000, \"meals\": [{\"name\": \"Almoço\", \"options\":[{\"foods\": []}]}]}","{\"meals\": [{\"name\": \"Almoço\", \"options\":[{\"foods\": [{\"foodId\": 1.5, \"quantityG\": 100}]}]}]}"})
     void rejectsMalformedTypesAndObsoleteContract(String body) throws Exception {
         mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON).content(body))
           .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors").isArray());
     }
     @Test void unreadableBodyIdentifiesFieldWhenPossible() throws Exception {
-        mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON).content("{\"targetKcal\": 2000, \"meals\": [{\"name\": \"Almoço\", \"foods\": []}]}"))
+        mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON).content("{\"targetKcal\": 2000, \"meals\": [{\"name\": \"Almoço\", \"options\":[{\"foods\": []}]}]}"))
           .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("targetKcal"));
-        mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON).content("{\"meals\": [{\"name\": \"Almoço\", \"foods\": [{\"foodId\": 1.5, \"quantityG\": 100}]}]}"))
-          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("meals[0].foods[0].foodId"));
+        mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON).content("{\"meals\": [{\"name\": \"Almoço\", \"options\":[{\"foods\": [{\"foodId\": 1.5, \"quantityG\": 100}]}]}]}"))
+          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("meals[0].options[0].foods[0].foodId"));
         mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON).content("{"))
           .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors").isEmpty());
     }
     @Test void missingFoodReturns404() throws Exception {
-        mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON).content("{\"meals\": [{\"name\": \"Almoço\", \"foods\": [{\"foodId\": 999, \"quantityG\": 100}]}]}"))
+        mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON).content("{\"meals\": [{\"name\": \"Almoço\", \"options\":[{\"foods\": [{\"foodId\": 999, \"quantityG\": 100}]}]}]}"))
           .andExpect(status().isNotFound());
     }
     @ParameterizedTest @ValueSource(strings={"{}","{\"meals\":null}","{\"meals\":[null]}","{\"foods\":[]}"})
@@ -122,24 +122,24 @@ class CalculatorApiTest {
     @ParameterizedTest @ValueSource(strings={"null","\"\"","\"   \""})
     void rejectsInvalidMealNameWithNestedPath(String name) throws Exception {
         mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
-          .content("{\"meals\":[{\"name\":\"A\",\"foods\":[]},{\"name\":"+name+",\"foods\":[]}]}"))
+          .content("{\"meals\":[{\"name\":\"A\",\"options\":[{\"foods\":[]}]},{\"name\":"+name+",\"options\":[{\"foods\":[]}]}]}"))
           .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("meals[1].name"));
     }
     @Test void validatesMealAndDailyPortionLimits() throws Exception {
-        var emptyMeal = "{\"name\":\"A\",\"foods\":[]}";
+        var emptyMeal = "{\"name\":\"A\",\"options\":[{\"foods\":[]}]}";
         mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
           .content("{\"meals\":["+String.join(",",java.util.Collections.nCopies(21,emptyMeal))+"]}"))
           .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("meals"));
         mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
-          .content("{\"meals\":[{\"name\":\""+"a".repeat(61)+"\",\"foods\":[]}]}"))
+          .content("{\"meals\":[{\"name\":\""+"a".repeat(61)+"\",\"options\":[{\"foods\":[]}]}]}"))
           .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("meals[0].name"));
         var portions = String.join(",",java.util.Collections.nCopies(250,"{\"foodId\":1,\"quantityG\":1}"));
-        var meal = "{\"name\":\"A\",\"foods\":["+portions+"]}";
+        var meal = "{\"name\":\"A\",\"options\":[{\"foods\":["+portions+"]}]}";
         mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
           .content("{\"meals\":["+meal+","+meal+"]}"))
           .andExpect(status().isOk());
         mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
-          .content("{\"meals\":["+meal+","+meal+",{\"name\":\"C\",\"foods\":[{\"foodId\":1,\"quantityG\":1}]}]}"))
+          .content("{\"meals\":["+meal+","+meal+",{\"name\":\"C\",\"options\":[{\"foods\":[{\"foodId\":1,\"quantityG\":1}]}]}]}"))
           .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("meals"));
     }
     @Test void portionQuantityByNutrientIsPublicAndValidated() throws Exception {
@@ -164,12 +164,71 @@ class CalculatorApiTest {
     }
     @Test void nestedPortionErrorsAndMissingFoodInLaterMeal() throws Exception {
         mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
-          .content("{\"meals\":[{\"name\":\"A\",\"foods\":[{\"foodId\":1,\"quantityG\":1},{\"foodId\":1,\"quantityG\":1},{\"foodId\":1,\"quantityG\":0}]}]}"))
-          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("meals[0].foods[2].quantityG"))
+          .content("{\"meals\":[{\"name\":\"A\",\"options\":[{\"foods\":[{\"foodId\":1,\"quantityG\":1},{\"foodId\":1,\"quantityG\":1},{\"foodId\":1,\"quantityG\":0}]}]}]}"))
+          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("meals[0].options[0].foods[2].quantityG"))
           .andExpect(jsonPath("$.errors[0].message").value("Informe uma quantidade maior que zero."));
         mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
-          .content("{\"meals\":[{\"name\":\"A\",\"foods\":[]},{\"name\":\"B\",\"foods\":[{\"foodId\":999,\"quantityG\":1}]}]}"))
+          .content("{\"meals\":[{\"name\":\"A\",\"options\":[{\"foods\":[]}]},{\"name\":\"B\",\"options\":[{\"foods\":[{\"foodId\":999,\"quantityG\":1}]}]}]}"))
           .andExpect(status().isNotFound());
+    }
+    @Test void mealOptionsAreValidatedWithNestedPaths() throws Exception {
+        mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
+          .content("{\"meals\":[{\"name\":\"A\",\"options\":[]}]}"))
+          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("meals[0].options"))
+          .andExpect(jsonPath("$.errors[0].message").value("Informe ao menos uma opção."));
+        mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
+          .content("{\"meals\":[{\"name\":\"A\"}]}"))
+          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("meals[0].options"));
+        var six = String.join(",", java.util.Collections.nCopies(6, "{\"foods\":[]}"));
+        mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
+          .content("{\"meals\":[{\"name\":\"A\",\"options\":["+six+"]}]}"))
+          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("meals[0].options"))
+          .andExpect(jsonPath("$.errors[0].message").value("Informe no máximo 5 opções por refeição."));
+        var five = String.join(",", java.util.Collections.nCopies(5, "{\"foods\":[]}"));
+        mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
+          .content("{\"meals\":[{\"name\":\"A\",\"options\":["+five+"]}]}"))
+          .andExpect(status().isOk()).andExpect(jsonPath("$.meals[0].options.length()").value(5));
+        mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
+          .content("{\"meals\":[{\"name\":\"A\",\"options\":[{\"foods\":[]},{\"foods\":[{\"foodId\":1,\"quantityG\":0}]}]}]}"))
+          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("meals[0].options[1].foods[0].quantityG"))
+          .andExpect(jsonPath("$.errors[0].message").value("Informe uma quantidade maior que zero."));
+        mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
+          .content("{\"meals\":[{\"name\":\"A\",\"foods\":[],\"options\":[{\"foods\":[]}]}]}"))
+          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("meals[0].foods"));
+    }
+    @Test void onlyFirstOptionCountsInTheDay() throws Exception {
+        mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
+          .content("{\"meals\":[{\"name\":\"A\",\"options\":[{\"foods\":[{\"foodId\":1,\"quantityG\":100}]},{\"foods\":[{\"foodId\":3,\"quantityG\":100}]}]}]}"))
+          .andExpect(status().isOk()).andExpect(jsonPath("$.totals.energyKcal.consumed").value(130))
+          .andExpect(jsonPath("$.meals[0].totals.energyKcal").value(130))
+          .andExpect(jsonPath("$.meals[0].options[1].totals.energyKcal").value(900))
+          .andExpect(jsonPath("$.macroEnergyShares.fatPercent").value(org.hamcrest.Matchers.lessThan(10.0)));
+    }
+    @Test void nutrientsAndReferencesFollowTheOptionalProfile() throws Exception {
+        var meal = "\"meals\":[{\"name\":\"A\",\"options\":[{\"foods\":[{\"foodId\":1,\"quantityG\":100}]}]}]";
+        mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"referenceProfile\":{\"sex\":\"MALE\",\"age\":71}," + meal + "}"))
+          .andExpect(status().isOk()).andExpect(jsonPath("$.referenceSource.profile").value("Homem, 71 anos ou mais"))
+          .andExpect(jsonPath("$.nutrients[1].code").value("CALCIUM")).andExpect(jsonPath("$.nutrients[1].reference.amount").value(1200))
+          .andExpect(jsonPath("$.nutrients[1].reference.type").value("RDA")).andExpect(jsonPath("$.nutrients[1].status").value("COMPLETE"))
+          .andExpect(jsonPath("$.meals[0].nutrients").doesNotExist());
+        for (var profile : new String[] {"", "\"referenceProfile\":null,", "\"referenceProfile\":{\"sex\":\"FEMALE\"},",
+                "\"referenceProfile\":{\"sex\":\"UNSPECIFIED\",\"age\":30},", "\"referenceProfile\":{\"sex\":\"FEMALE\",\"age\":18},"}) {
+            mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON).content("{" + profile + meal + "}"))
+              .andExpect(status().isOk()).andExpect(jsonPath("$.referenceSource").value(org.hamcrest.Matchers.nullValue()))
+              .andExpect(jsonPath("$.nutrients[1].reference").value(org.hamcrest.Matchers.nullValue()))
+              .andExpect(jsonPath("$.nutrients[1].consumed").value(5));
+        }
+        mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"referenceProfile\":{\"sex\":\"FEMALE\",\"age\":131}," + meal + "}"))
+          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("referenceProfile.age"))
+          .andExpect(jsonPath("$.errors[0].message").value("Informe uma idade de até 130 anos."));
+        mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"referenceProfile\":{\"sex\":\"OTHER\",\"age\":30}," + meal + "}"))
+          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("referenceProfile.sex"));
+        mvc.perform(post("/api/diet-calculations").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"referenceProfile\":{\"sex\":\"FEMALE\",\"age\":30.5}," + meal + "}"))
+          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].field").value("referenceProfile.age"));
     }
     @Test void searchesAndPaginatesReadOnlyCatalog() throws Exception {
         mvc.perform(get("/api/foods").param("name","SINTETICO alimento").param("page","1").param("size","1"))

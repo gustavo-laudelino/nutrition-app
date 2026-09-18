@@ -4,17 +4,33 @@
     "proteinG": 150,
     "fatG": 70
   },
+  "referenceProfile": {
+    "sex": "FEMALE",
+    "age": 30
+  },
   "meals": [
     {
       "name": "Almoço",
-      "foods": [
+      "options": [
         {
-          "foodId": 1,
-          "quantityG": 150
+          "foods": [
+            {
+              "foodId": 1,
+              "quantityG": 150
+            },
+            {
+              "foodId": 2,
+              "quantityG": 100
+            }
+          ]
         },
         {
-          "foodId": 2,
-          "quantityG": 100
+          "foods": [
+            {
+              "foodId": 3,
+              "quantityG": 10
+            }
+          ]
         }
       ]
     }
