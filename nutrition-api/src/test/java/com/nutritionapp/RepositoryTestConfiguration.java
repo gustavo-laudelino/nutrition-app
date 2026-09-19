@@ -1,5 +1,6 @@
 package com.nutritionapp;
 
+import com.nutritionapp.consultation.ConsultationRepository;
 import com.nutritionapp.nutritionist.NutritionistRepository;
 import com.nutritionapp.patient.PatientRepository;
 import com.nutritionapp.record.RecordTemplateRepository;
@@ -18,6 +19,11 @@ public class RepositoryTestConfiguration {
     @Bean
     PatientRepository patientRepository() {
         return mock(PatientRepository.class);
+    }
+
+    @Bean
+    ConsultationRepository consultationRepository() {
+        return mock(ConsultationRepository.class);
     }
 
     @Bean

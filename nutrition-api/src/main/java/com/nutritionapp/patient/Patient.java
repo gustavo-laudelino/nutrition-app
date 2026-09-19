@@ -75,6 +75,20 @@ public class Patient {
         this.updatedAt = Instant.now();
     }
 
+    /**
+     * Measured in a completed consultation: only the given values change, and only when the consultation is not
+     * older than the current measurements. Returns whether anything changed.
+     */
+    public boolean updateMeasurements(BigDecimal weightKg, BigDecimal heightCm, LocalDate measuredOn) {
+        if (weightKg == null && heightCm == null) return false;
+        if (measuredAt != null && measuredOn.isBefore(measuredAt)) return false;
+        if (weightKg != null) this.weightKg = weightKg;
+        if (heightCm != null) this.heightCm = heightCm;
+        this.measuredAt = measuredOn;
+        this.updatedAt = Instant.now();
+        return true;
+    }
+
     public void archive(boolean archived) {
         this.archivedAt = archived ? Instant.now() : null;
         this.updatedAt = Instant.now();

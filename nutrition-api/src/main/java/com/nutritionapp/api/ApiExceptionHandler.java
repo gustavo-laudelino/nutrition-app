@@ -3,6 +3,7 @@ package com.nutritionapp.api;
 import java.util.List;
 import com.nutritionapp.shared.InvalidCalculationException;
 import com.nutritionapp.food.FoodNotFoundException;
+import com.nutritionapp.consultation.Consultation;
 import com.nutritionapp.record.RecordTemplate;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.beans.TypeMismatchException;
@@ -30,13 +31,15 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return exception.problem();
     }
 
-    /** Concurrent update detected on flush: patients and record templates are the versioned entities. */
+    /** Concurrent update detected on flush: patients, record templates and consultations are versioned. */
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ProblemDetail versionConflict(OptimisticLockingFailureException exception) {
-        var template = exception instanceof ObjectOptimisticLockingFailureException entity
-                && RecordTemplate.class.getName().equals(entity.getPersistentClassName());
-        return new ApiFailure(409, template ? "O modelo foi alterado em outra sessão. Recarregue."
-                : "O paciente foi alterado em outra sessão. Recarregue.").problem();
+        var entity = exception instanceof ObjectOptimisticLockingFailureException failure ? failure.getPersistentClassName() : null;
+        String what;
+        if (RecordTemplate.class.getName().equals(entity)) what = "O modelo foi alterado";
+        else if (Consultation.class.getName().equals(entity)) what = "A consulta foi alterada";
+        else what = "O paciente foi alterado";
+        return new ApiFailure(409, what + " em outra sessão. Recarregue.").problem();
     }
 
     @ExceptionHandler(FoodNotFoundException.class)
