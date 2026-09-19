@@ -26,6 +26,14 @@ export const routes: Routes = [
           { path: '', component: PatientList },
           { path: 'novo', component: PatientForm },
           { path: ':id', component: PatientForm },
+          // Consultations (filled records) load on demand, like the Oficina.
+          { path: ':id/consultas', loadComponent: () => import('./consultations/consultation-list').then(module => module.ConsultationList) },
+          {
+            path: ':id/consultas/:consultationId',
+            loadComponent: () => import('./consultations/consultation-page').then(module => module.ConsultationPage),
+            canDeactivate: [(component: { dirty(): boolean }) =>
+              !component.dirty() || window.confirm('Sair da consulta sem salvar as alterações?')],
+          },
         ],
       },
       {

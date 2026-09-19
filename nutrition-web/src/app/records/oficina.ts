@@ -4,7 +4,7 @@ import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { apiErrors, ApiErrors, NO_ERRORS } from '../api-errors';
-import { FieldPreview } from './field-preview';
+import { FieldControl } from './field-control';
 import { FieldType, FieldWidth, RecordField, RecordFieldCategory, RecordsApi, RecordTemplate, TemplateField } from './records-api';
 
 interface EditSection { key: number; name: string; fields: TemplateField[] }
@@ -25,7 +25,7 @@ const TYPE_ICONS: Record<FieldType, string> = {
 const FULL_BY_DEFAULT: FieldType[] = ['LONG_TEXT', 'TABLE', 'MULTI_CHOICE'];
 
 function normalize(text: string) {
-  return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  return text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 }
 
 /**
@@ -35,7 +35,7 @@ function normalize(text: string) {
  */
 @Component({
   selector: 'app-oficina',
-  imports: [CdkDropList, CdkDrag, CdkDragPlaceholder, FieldPreview, RouterLink],
+  imports: [CdkDropList, CdkDrag, CdkDragPlaceholder, FieldControl, RouterLink],
   templateUrl: './oficina.html',
   styleUrl: './oficina.css',
   host: { '(window:beforeunload)': 'warnBeforeUnload($event)' },

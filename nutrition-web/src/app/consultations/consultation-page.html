@@ -1,0 +1,72 @@
+<div class="account-page consultation-page">
+  @if (loadError()) {
+    <p role="alert" class="error">{{ loadError() }}</p>
+    <a [routerLink]="['/pacientes', patientId, 'consultas']">Voltar às consultas</a>
+  } @else if (consultation(); as current) {
+    <div class="heading">
+      <div>
+        <a class="back-link" [routerLink]="['/pacientes', patientId, 'consultas']">‹ Consultas</a>
+        <h1>{{ current.templateName }}</h1>
+        @if (patient(); as person) {
+          <p class="patient-line">{{ person.name }}
+            @if (person.ageYears !== null) { · {{ person.ageYears }} anos }
+            @if (person.sex) { · {{ person.sex === 'FEMALE' ? 'Feminino' : 'Masculino' }} }
+          </p>
+        }
+      </div>
+      <div class="consultation-actions">
+        <label class="date-field">Data
+          <input type="date" [value]="date()" [max]="today" [disabled]="completed()" (change)="date.set($any($event.target).value)">
+        </label>
+        <span class="status" [class.completed]="completed()">
+          @if (completed()) { Concluída em {{ current.completedAt | date:'dd/MM/yyyy' }} } @else { Rascunho }
+          @if (current.reopenedAt) { · reaberta em {{ current.reopenedAt | date:'dd/MM/yyyy' }} }
+        </span>
+        @if (completed()) {
+          <button type="button" (click)="reopen()" [disabled]="busy()">Reabrir</button>
+        } @else {
+          <span class="save-state" [class.unsaved]="dirty()">{{ dirty() ? 'Alterações não salvas' : 'Tudo salvo' }}</span>
+          <button type="button" class="plain" (click)="save()" [disabled]="busy() || !dirty()">Salvar rascunho</button>
+          <button type="button" class="primary" (click)="complete()" [disabled]="busy()">Concluir</button>
+        }
+      </div>
+    </div>
+
+    @if (notice()) { <p role="status" class="notice">{{ notice() }}</p> }
+    @if (conflict()) {
+      <div class="error" role="alert">
+        A consulta foi alterada em outra sessão. Recarregue para ver a versão salva (as alterações desta tela serão descartadas).
+        <button type="button" (click)="reload()">Recarregar</button>
+      </div>
+    }
+    @if (errors().detail) {
+      <div class="error" role="alert">
+        {{ errors().detail }}
+        @for (message of errorMessages(); track $index) { <span> {{ message }}</span> }
+      </div>
+    }
+
+    <div class="section-tabs" role="tablist" aria-label="Seções do prontuário">
+      @for (section of current.sections; track $index; let index = $index) {
+        <button type="button" role="tab" class="section-tab" [class.active]="index === activeIndex()" [attr.aria-selected]="index === activeIndex()"
+          aria-controls="consultation-sheet" (click)="activeIndex.set(index)">
+          {{ section.name }} <span class="section-progress">{{ answeredCount(index) }}/{{ section.fields.length }}</span>
+        </button>
+      }
+    </div>
+    @if (section(); as open) {
+      <section class="account-card sheet" id="consultation-sheet" role="tabpanel" [attr.aria-label]="open.name">
+        @for (item of open.fields; track item.field.code) {
+          <div [class]="'grid-item w-' + item.width" [class.has-error]="errorCode() === item.field.code">
+            <app-field-control [field]="item.field" [textRows]="item.textRows" mode="fill" [readonly]="completed()" idPrefix="answer"
+              [value]="answers()[item.field.code] ?? null" (valueChange)="setAnswer(item.field.code, $event)" />
+          </div>
+        } @empty {
+          <p class="empty">Esta seção não tem campos.</p>
+        }
+      </section>
+    }
+  } @else {
+    <p role="status">Abrindo a consulta…</p>
+  }
+</div>

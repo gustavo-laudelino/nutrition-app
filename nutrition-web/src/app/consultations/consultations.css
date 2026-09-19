@@ -1,0 +1,42 @@
+/* Consultation list and filling page; shared account look comes from account.css. */
+.patient-line{margin:6px 0 0;color:#6f7f6a}
+.plain{background:#fff}
+.danger{color:#a94436;border-color:#e7c3a9}
+.primary{background:#245c48;border-color:#245c48;color:#fff}
+.notice a{font-weight:600}
+
+/* List */
+.consultation-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:14px 0;border-bottom:1px solid #e5eadd}
+.consultation-row:last-child{border-bottom:0}
+.consultation-main{display:grid;gap:2px;min-width:160px}
+.consultation-date{font-size:15px;font-weight:650;text-decoration:none;color:#294735}
+.consultation-date:hover{text-decoration:underline}
+.consultation-template{font-size:12px;color:#798575}
+.status{font-size:12px;padding:4px 10px;border-radius:999px;background:#f3f1e6;color:#7a6a2c}
+.status.completed{background:#e3f0dc;color:#3c6b34}
+.row-buttons{display:flex;gap:8px;margin-left:auto}
+.row-buttons button,.row-buttons .action-link{padding:7px 13px;font-size:12px}
+.consultation-row .confirm{flex-basis:100%;margin-top:4px}
+
+/* Filling page */
+.consultation-page{max-width:1180px}
+.back-link{font-size:12px;font-weight:600;text-decoration:none}
+.heading h1{margin-top:6px}
+.consultation-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.date-field{display:flex;align-items:center;gap:8px}
+.date-field input{width:auto;padding:8px 12px}
+.save-state{font-size:12px;color:#7d887f}
+.save-state.unsaved{color:#9a6a1f;font-weight:600}
+.error button{margin-left:8px;padding:5px 12px;font-size:12px}
+.section-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 14px}
+.section-tab{padding:7px 14px;font-size:12px;background:#fff}
+.section-tab.active{background:#245c48;border-color:#245c48;color:#fff}
+.section-progress{margin-left:6px;font-size:11px;opacity:.75}
+.sheet{display:flex;flex-wrap:wrap;gap:16px;align-content:flex-start}
+.grid-item{box-sizing:border-box;min-width:0;padding:4px;border-radius:10px}
+.grid-item.has-error{outline:2px solid #c0694b;outline-offset:2px}
+.w-THIRD{width:calc((100% - 32px) / 3)}
+.w-HALF{width:calc((100% - 16px) / 2)}
+.w-TWO_THIRDS{width:calc((100% - 32px) * 2 / 3 + 16px)}
+.w-FULL{width:100%}
+@media(max-width:760px){.w-THIRD,.w-HALF,.w-TWO_THIRDS{width:100%}}

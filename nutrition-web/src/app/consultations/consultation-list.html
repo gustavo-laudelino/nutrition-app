@@ -1,0 +1,97 @@
+<div class="account-page">
+  <div class="heading">
+    <div>
+      <h1>Consultas</h1>
+      @if (patient(); as current) {
+        <p class="patient-line">{{ current.name }}
+          @if (current.ageYears !== null) { · {{ current.ageYears }} anos }
+          @if (current.sex) { · {{ current.sex === 'FEMALE' ? 'Feminino' : 'Masculino' }} }
+        </p>
+      }
+    </div>
+    <div class="actions">
+      <a [routerLink]="['/pacientes', patientId]">Cadastro do paciente</a>
+      @if (patient() && !patient()!.archived && templates().length) {
+        <button type="button" (click)="openCreate()">Nova consulta</button>
+      }
+    </div>
+  </div>
+
+  @if (error()) { <p role="alert" class="error">{{ error() }}</p> }
+
+  @if (patient()?.archived) {
+    <p class="notice">Paciente arquivado: reative o cadastro para registrar novas consultas.</p>
+  } @else if (patient() && !templates().length) {
+    <p class="notice">Para abrir uma consulta, crie antes um modelo de prontuário. <a routerLink="/prontuario/modelos">Ir para os modelos</a></p>
+  }
+
+  @if (creating()) {
+    <section class="account-card" aria-labelledby="new-consultation-title">
+      <h2 id="new-consultation-title">Nova consulta</h2>
+      <form (ngSubmit)="create()">
+        <div class="fields">
+          <label>Modelo do prontuário
+            <select name="templateId" [(ngModel)]="templateId" required>
+              @for (template of templates(); track template.id) {
+                <option [value]="template.id">{{ template.name }}{{ template.isDefault ? ' (padrão)' : '' }}</option>
+              }
+            </select>
+            <span class="field-error">{{ createErrors().fields['templateId'] }}</span>
+          </label>
+          <label>Data da consulta
+            <input type="date" name="date" [(ngModel)]="date" [max]="today" required>
+            <span class="field-error">{{ createErrors().fields['date'] }}</span>
+          </label>
+        </div>
+        @if (createErrors().detail && !createErrors().fields['date'] && !createErrors().fields['templateId']) {
+          <p role="alert" class="error">{{ createErrors().detail }}</p>
+        }
+        <div class="actions">
+          <button type="submit" [disabled]="busy() || !templateId || !date">Abrir consulta</button>
+          <button type="button" class="plain" (click)="creating.set(false)">Cancelar</button>
+        </div>
+      </form>
+    </section>
+  }
+
+  @if (consultations(); as list) {
+    <section class="account-card">
+      @for (consultation of list; track consultation.id) {
+        <div class="consultation-row">
+          <div class="consultation-main">
+            <a class="consultation-date" [routerLink]="['/pacientes', patientId, 'consultas', consultation.id]">{{ consultation.date | date:'dd/MM/yyyy' }}</a>
+            <span class="consultation-template">{{ consultation.templateName }}</span>
+          </div>
+          <span class="status" [class.completed]="consultation.status === 'COMPLETED'">
+            @if (consultation.status === 'COMPLETED') { Concluída em {{ consultation.completedAt | date:'dd/MM/yyyy' }} } @else { Rascunho }
+            @if (consultation.reopenedAt) { · reaberta em {{ consultation.reopenedAt | date:'dd/MM/yyyy' }} }
+          </span>
+          @if (pendingDelete() === consultation.id) {
+            <div class="confirm" role="alertdialog" aria-label="Confirmar exclusão da consulta">
+              <p>
+                @if (consultation.firstCompletedAt) {
+                  Excluir a consulta de {{ consultation.date | date:'dd/MM/yyyy' }}? Ela sai da lista, mas continua guardada, porque prontuários concluídos têm guarda obrigatória.
+                } @else {
+                  Excluir o rascunho de {{ consultation.date | date:'dd/MM/yyyy' }}? As respostas serão apagadas.
+                }
+              </p>
+              <div class="actions">
+                <button type="button" class="plain" (click)="pendingDelete.set(null)">Cancelar</button>
+                <button type="button" class="danger" (click)="remove(consultation.id)" [disabled]="busy()">Excluir</button>
+              </div>
+            </div>
+          } @else {
+            <div class="row-buttons">
+              <a class="action-link" [routerLink]="['/pacientes', patientId, 'consultas', consultation.id]">Abrir</a>
+              <button type="button" class="plain danger" (click)="pendingDelete.set(consultation.id)" [disabled]="busy()">Excluir</button>
+            </div>
+          }
+        </div>
+      } @empty {
+        <p class="empty">Nenhuma consulta registrada.</p>
+      }
+    </section>
+  } @else if (!error()) {
+    <p role="status">Carregando consultas…</p>
+  }
+</div>

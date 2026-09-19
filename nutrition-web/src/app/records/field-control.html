@@ -1,0 +1,123 @@
+@let item = field();
+@let off = disabled();
+<div class="field" [class.static]="mode() === 'design'">
+  @switch (item.type) {
+    @case ('SHORT_TEXT') {
+      <label class="field-label" [for]="id()">{{ item.label }}</label>
+      <input [id]="id()" type="text" [maxLength]="item.maxLength ?? 200" [disabled]="off" [value]="text()" (input)="setText($any($event.target).value)">
+    }
+    @case ('LONG_TEXT') {
+      <label class="field-label" [for]="id()">{{ item.label }}</label>
+      <textarea [id]="id()" [rows]="textRows() ?? 3" [maxLength]="item.maxLength ?? 4000" [disabled]="off" [value]="text()"
+        (input)="setText($any($event.target).value)"></textarea>
+    }
+    @case ('NUMBER') {
+      <label class="field-label" [for]="id()">{{ item.label }}</label>
+      <span class="number">
+        <input #number [id]="id()" type="number" [min]="item.min ?? null" [max]="item.max ?? null" [step]="step(item.decimals)"
+          [disabled]="off" [value]="value() ?? ''" (input)="setNumber(number)">
+        @if (item.unit) { <span class="number-unit">{{ item.unit }}</span> }
+      </span>
+    }
+    @case ('DATE') {
+      <label class="field-label" [for]="id()">{{ item.label }}</label>
+      <input [id]="id()" type="date" [disabled]="off" [value]="text()" (input)="setText($any($event.target).value)">
+    }
+    @case ('YES_NO_DETAIL') {
+      <fieldset>
+        <legend class="field-label">{{ item.label }}</legend>
+        <span class="choices">
+          <label class="choice"><input type="radio" [name]="id()" [checked]="yesNo().answer === true" [disabled]="off" (change)="setYesNo({ answer: true })"> Sim</label>
+          <label class="choice"><input type="radio" [name]="id()" [checked]="yesNo().answer === false" [disabled]="off" (change)="setYesNo({ answer: false })"> Não</label>
+        </span>
+        @if (mode() === 'design' || yesNo().answer === true) {
+          <input type="text" maxlength="500" [attr.aria-label]="item.detailLabel ?? 'Detalhe'" [placeholder]="item.detailLabel ?? 'Detalhe'"
+            [disabled]="off" [value]="yesNo().detail ?? ''" (input)="setYesNo({ detail: $any($event.target).value })">
+        }
+      </fieldset>
+    }
+    @case ('SINGLE_CHOICE') {
+      @let answer = single();
+      @if ((item.options?.length ?? 0) > 5) {
+        <label class="field-label" [for]="id()">{{ item.label }}</label>
+        <select [id]="id()" [disabled]="off" (change)="setSingle($any($event.target).value)">
+          <option value="" [selected]="!answer.option && !hasOther(answer)">Selecione</option>
+          @for (option of item.options; track option.code) {
+            <option [value]="option.code" [selected]="answer.option === option.code">{{ option.label }}</option>
+          }
+          @if (item.allowOther) { <option value="other" [selected]="hasOther(answer)">Outro</option> }
+        </select>
+      } @else {
+        <fieldset>
+          <legend class="field-label">{{ item.label }}</legend>
+          <span class="choices">
+            @for (option of item.options; track option.code) {
+              <label class="choice"><input type="radio" [name]="id()" [checked]="answer.option === option.code" [disabled]="off" (change)="setSingle(option.code)"> {{ option.label }}</label>
+            }
+            @if (item.allowOther) {
+              <label class="choice"><input type="radio" [name]="id()" [checked]="hasOther(answer)" [disabled]="off" (change)="setSingle('other')"> Outro</label>
+            }
+          </span>
+        </fieldset>
+      }
+      @if (item.allowOther && hasOther(answer)) {
+        <input type="text" maxlength="200" aria-label="Qual?" placeholder="Qual?" [disabled]="off" [value]="answer.other ?? ''" (input)="setSingleOther($any($event.target).value)">
+      }
+    }
+    @case ('MULTI_CHOICE') {
+      @let answer = multi();
+      <fieldset>
+        <legend class="field-label">{{ item.label }}</legend>
+        <span class="choices">
+          @for (option of item.options; track option.code) {
+            <label class="choice"><input type="checkbox" [checked]="answer.options?.includes(option.code) ?? false" [disabled]="off"
+              (change)="toggleMulti(option.code, $any($event.target).checked)"> {{ option.label }}</label>
+          }
+          @if (item.allowOther) {
+            <label class="choice"><input type="checkbox" [checked]="hasOther(answer)" [disabled]="off" (change)="toggleMultiOther($any($event.target).checked)"> Outro</label>
+          }
+        </span>
+        @if (item.allowOther && hasOther(answer)) {
+          <input type="text" maxlength="200" aria-label="Quais outros?" placeholder="Quais outros?" [disabled]="off" [value]="answer.other ?? ''"
+            (input)="setMultiOther($any($event.target).value)">
+        }
+      </fieldset>
+    }
+    @case ('SCALE') {
+      <fieldset>
+        <legend class="field-label">{{ item.label }}</legend>
+        <span class="scale-box">
+          <span class="scale">
+            @for (step of scale(); track step) {
+              <label class="scale-step"><input type="radio" [name]="id()" [checked]="value() === step" [disabled]="off" (change)="value.set(step)"><span>{{ step }}</span></label>
+            }
+          </span>
+          <span class="scale-ends"><span>{{ item.minLabel }}</span><span>{{ item.maxLabel }}</span></span>
+        </span>
+      </fieldset>
+    }
+    @case ('TABLE') {
+      <span class="field-label" [id]="id() + '-label'">{{ item.label }}</span>
+      <div class="table-wrap">
+        <table [attr.aria-labelledby]="id() + '-label'">
+          <thead><tr>@for (column of item.columns; track column.code) { <th scope="col">{{ column.label }}</th> }@if (mode() === 'fill' && !readonly()) { <th><span class="sr-only">Remover</span></th> }</tr></thead>
+          <tbody>
+            @for (row of rows(); track $index; let index = $index) {
+              <tr>
+                @for (column of item.columns; track column.code) {
+                  <td><input type="text" maxlength="500" [attr.aria-label]="column.label + ', linha ' + (index + 1)" [disabled]="off"
+                    [value]="row[column.code] ?? ''" (input)="setCell(index, column.code, $any($event.target).value)"></td>
+                }
+                @if (mode() === 'fill' && !readonly()) {
+                  <td class="row-action"><button type="button" class="remove-row" (click)="removeRow(index)" [attr.aria-label]="'Remover linha ' + (index + 1)" title="Remover linha">×</button></td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (mode() === 'fill' && !readonly()) { <button type="button" class="add-row" (click)="addRow()">+ Adicionar linha</button> }
+    }
+  }
+  @if (item.help) { <small class="help">{{ item.help }}</small> }
+</div>

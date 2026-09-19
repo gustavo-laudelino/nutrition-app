@@ -41,7 +41,7 @@ export const authenticated: CanActivateFn = () => {
   return inject(Session).token() ? true : inject(Router).createUrlTree(['/login']);
 };
 
-const PROTECTED_PATHS = ['/api/auth/me', '/api/patients', '/api/record-fields', '/api/record-templates'];
+const PROTECTED_PATHS = ['/api/auth/me', '/api/patients', '/api/record-fields', '/api/record-templates', '/api/consultations'];
 
 /** Only the protected API paths of this origin receive the token; calculator endpoints stay public. */
 export function protectedApi(url: string): boolean {

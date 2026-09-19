@@ -1,7 +1,10 @@
 <div class="account-page">
   <div class="heading">
     <h1>{{ id ? 'Editar paciente' : 'Novo paciente' }}</h1>
-    <a routerLink="/pacientes">Voltar para pacientes</a>
+    <div class="actions">
+      @if (id) { <a class="action-link" [routerLink]="['/pacientes', id, 'consultas']">Consultas</a> }
+      <a routerLink="/pacientes">Voltar para pacientes</a>
+    </div>
   </div>
 
   @if (loading()) {
