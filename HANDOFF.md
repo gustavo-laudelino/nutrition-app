@@ -26,10 +26,16 @@ Em ordem de prioridade. Ler antes de qualquer trabalho novo.
    - o valor ilegível `",0,02"` (piridoxina do alimento 373), gravado como não analisado.
 
 0a. **(18/09) Oficina de modelos de prontuário: implementada por Claude** (a pedido do usuário, sem o Codex). [Especificação](docs/features/prontuario-oficina.md); 266 testes backend e 110 frontend passando, builds passando; V4 e o fluxo completo conferidos num PostgreSQL descartável e no navegador.
-   - **O usuário precisa reiniciar a API no IntelliJ**, para aplicar a V4 (`record_templates` e as tabelas-filhas) e carregar o catálogo. Durante esta sessão, `mvn test` recompilou `target/classes` com a API rodando: reiniciar resolve.
-   - Depois, conferir no navegador: Prontuário → "Começar pelo modelo inicial" → Oficina (arrastar, seções, propriedades, pré-visualizar, salvar).
+   - V4 aplicada no banco real em 18/09 (o usuário reiniciou a API).
+   - Conferir no navegador: Prontuário → "Começar pelo modelo inicial" → Oficina (arrastar, seções, propriedades, pré-visualizar, salvar).
    - **O catálogo é genérico, a pedido do usuário.** O levantamento aprofundado das perguntas e opções reais será feito depois com o nutricionista. Os códigos de campo são permanentes; retirar um campo é marcá-lo como `deprecated`.
-   - Aviso de tamanho: o pacote inicial do web tem 609 kB, acima do aviso de 600 kB. O crescimento vem do planejamento (abas de opção); o prontuário já é carregado sob demanda.
+   - Aviso de tamanho: o pacote inicial do web tem 611 kB, acima do aviso de 600 kB. O crescimento vem do planejamento (abas de opção); prontuário e consultas já são carregados sob demanda.
+
+0b. **(18/09) Prontuário por consulta, entrega 2a: implementada por Claude.** [Especificação](docs/features/prontuario-consultas.md). 309 testes backend e 118 frontend passando, builds passando; V5 e o fluxo completo (abrir, salvar, concluir com sincronização, reabrir, excluir oculto) conferidos num PostgreSQL descartável.
+   - **O usuário precisa reiniciar a API no IntelliJ**, para aplicar a V5 (`consultations`). `mvn test` recompilou `target/classes` com a API rodando.
+   - Conferir no navegador: Pacientes → um paciente → **Consultas** → Nova consulta → preencher, salvar rascunho, concluir (peso/altura atualizam o cadastro), reabrir e excluir.
+   - A regra de exclusão (a concluída fica guardada) é provisória: **confirmar com o nutricionista/CRN**.
+   - **Próxima (decidida em 19/09): atendimento pelo prontuário.** Item "Atendimento" na barra lateral; paciente novo nasce na consulta; cabeçalho fixo (nome, idade, sexo, telefone) que grava no cadastro ao salvar/concluir; aba fixa "Antropometria" com peso e altura. Decisões e propostas a confirmar na [especificação](docs/features/prontuario-consultas.md), seção "Próxima revisão". Depois: 2b (evolução das medidas e consulta anterior) e 2c (abrir o planejamento a partir da consulta).
 
 1. **Revisar a entrega do Codex de login e pacientes** contra os critérios de aceite de [docs/features/autenticacao-e-pacientes.md](docs/features/autenticacao-e-pacientes.md), sem alterar código primeiro, e trazer a lista de achados. O usuário já testou no navegador: login, cadastro e pacientes funcionam. Para rodar a API é preciso `JWT_SECRET` (≥ 32 bytes) nas variáveis de ambiente, além de `DB_URL`/`DB_USERNAME`/`DB_PASSWORD`. Se o IntelliJ não encontrar pacotes do Spring Security, recarregar o projeto Maven: o Codex compilou com o repositório temporário `%TEMP%/nutrition-maven-repository`.
 2. **Corrigir dois defeitos no formulário de paciente** (`nutrition-web/src/app/patients/patient-form.*`):
@@ -95,7 +101,7 @@ Decisões do usuário (17/09): JWT; cadastro aberto; paciente com dados básicos
 | Ordem | Feature | Status |
 |---|---|---|
 | 1 | Oficina de modelos de prontuário (catálogo de campos do sistema, modelos do nutricionista montados por arrastar e soltar, seções como abas, pré-visualização) | **Implementada (18/09) por Claude**, testes/build passando; V4 pendente no banco real (reiniciar a API) — [especificação](docs/features/prontuario-oficina.md); catálogo genérico e modelo inicial **a validar com o nutricionista** |
-| 2 | Prontuário por consulta (histórico datado por paciente, cópia da estrutura do modelo, peso/altura sincronizam com o cadastro) | **Próxima (decisões de 18/09 registradas** na [especificação](docs/features/prontuario-oficina.md), seção "Decisões do usuário para a Feature 2"): rascunho/concluída; reabrir com registro; exclusão lógica da concluída, a confirmar com o CRN; entregas 2a (preencher/concluir/listar), 2b (evolução e consulta anterior) e 2c (abrir o planejamento a partir da consulta). Começar pela especificação detalhada da 2a, **em sessão nova** |
+| 2 | Prontuário por consulta (histórico datado por paciente, cópia da estrutura do modelo, peso/altura sincronizam com o cadastro) | **2a implementada (18/09) por Claude**, testes/build passando; V5 pendente no banco real (reiniciar a API) — [especificação](docs/features/prontuario-consultas.md): rascunho/concluída; reabrir com registro; exclusão lógica da concluída, a confirmar com o CRN. **Próximas:** 2b (evolução e consulta anterior) e 2c (abrir o planejamento a partir da consulta) |
 
 Decisões do usuário (18/09): um prontuário por consulta; vários modelos por nutricionista, com modelo inicial e um padrão; campos só do catálogo do sistema (sem criar campos do zero); o nutricionista ajusta seção, posição e tamanho do campo; peso/altura sincronizam com o cadastro; Oficina como área de trabalho delimitada, com ferramentas ao lado (referência n8n, sem canvas infinito).
 
@@ -251,6 +257,7 @@ Backend em `nutrition-api`: Java 25, Spring Boot 4.1.1, Maven, JAR; package `com
 | `shared` | `DecimalPrecision`, erro de cálculo com campo e `TextSearch` (busca por palavras sem acento/caixa, usada por alimentos e pacientes) |
 | `api` | Tradução de erros para ProblemDetail; `ApiFailure` (erro esperado com status e campo opcional, usado por auth, pacientes e prontuário) |
 | `record` | Prontuário (18/09): `RecordFieldCatalog` (catálogo e modelo inicial em `resources/records/*.json`, validados ao iniciar), `TemplateStructureRules`, entidade `RecordTemplate` (seções e campos como `@ElementCollection`), serviço e controller |
+| `consultation` | Prontuário por consulta (18/09, 2a): entidade `Consultation` (estrutura copiada e respostas em JSON), `AnswerRules` (validação/normalização por tipo de campo), serviço (rascunho, conclusão com sincronização de peso/altura, reabrir, exclusão lógica) e controller |
 
 Frontend em `nutrition-web`: Angular 22.1.6, TypeScript 6, RxJS; CLI 22.1.8 utiliza Vite no desenvolvimento. Não há Vite separado nem biblioteca visual. Router 22.1.6 adicionado; `Shell`, `routes.ts`, `auth/` e `patients/` isolam as telas novas, cada componente com template `.html` próprio; `api-errors.ts` e `account.css` (estilo das telas de conta/pacientes) ficam na raiz de `app/`. Planejamento (`app.ts`, `app.html`, `styles.css`, `app.spec.ts`) não foi alterado nesta entrega. `api.ts` contém contratos tipados; `app.ts`, `app.html` e `styles.css` implementam o fluxo com formulários reativos e signals.
 
@@ -268,6 +275,10 @@ Foi removido `EnergyTargetCalculator` e o antigo objeto `energy` de definição 
 - Campos, limites e respostas documentados no README da API e na especificação. Idade calculada no backend, sem restrição 19+ no cadastro. PUT exige versão; conflito → 409. Paciente alheio ou inexistente → 404, inclusive nas ações.
 - Senhas de cadastro: 8–72 caracteres, respeitando também limite técnico BCrypt de 72 bytes UTF-8 (400 explícito, sem truncamento). Login com senha errada curta também retorna 401 genérico.
 - `401/403` usam ProblemDetail com `errors`. Nenhum logging novo de senha/token/dados de paciente.
+
+### Prontuário: consultas (18/09, autenticadas)
+
+`GET/POST /api/patients/{patientId}/consultations` (lista sem excluídas; abrir com `{templateId, date}`); `GET/PUT /api/consultations/{id}` (PUT só em rascunho, `{date, version, answers}`); `POST /{id}/complete` e `/{id}/reopen` com `{version}` (conclusão devolve `{consultation, patientUpdated}`); `DELETE /{id}` (rascunho nunca concluído é apagado; já concluída fica oculta). Formatos das respostas e erros em [prontuario-consultas.md](docs/features/prontuario-consultas.md).
 
 ### Prontuário: modelos (18/09, autenticados)
 
@@ -328,6 +339,8 @@ Resposta `meals` mantém a ordem do pedido, com `name`, `totals` simples (`Nutri
 Correção posterior em 16/09: bolso passou de estimativa para prescrição direta. Esta regra substitui expressamente a interpretação anterior de exigir o botão de aplicar também para bolso.
 
 ## 10. Estados da interface
+
+**Consultas (18/09, 2a):** botão **Consultas** no cadastro do paciente; `/pacientes/:id/consultas` (lista, nova consulta com o modelo padrão e hoje pré-selecionados, excluir com confirmação que explica apagar vs. guardar) e `/pacientes/:id/consultas/:consultaId` (seções em abas com progresso respondido/total, campos na grade do modelo, Salvar rascunho, Concluir, Reabrir; concluída é somente leitura; sair com alterações pede confirmação). Carregadas sob demanda. O `FieldControl` (antigo `FieldPreview`) é o mesmo controle na Oficina, na pré-visualização e na consulta.
 
 **Prontuário (18/09):** "Prontuário" na barra lateral; `/prontuario/modelos` (lista) e `/prontuario/modelos/:id` (Oficina), protegidas e carregadas sob demanda. A Oficina é uma área delimitada em três colunas: ferramentas, folha com seções em abas e propriedades. Salvar é explícito, e sair com alterações pede confirmação. Abaixo de 1024 px aparece só um aviso. Detalhes no [README do web](nutrition-web/README.md).
 
@@ -395,6 +408,8 @@ Correção posterior em 16/09: bolso passou de estimativa para prescrição dire
   - cálculo real com nutrientes e referência;
   - servidor removido depois.
 - **No banco real, V1–V3 já foram aplicadas** (conferido em 18/09: esquema na versão 3). Migrations aplicadas são imutáveis: correções de dados entram como V4+.
+
+**Consultas (18/09):** V5 (`V5__create_consultations.sql`) cria `consultations`: FK para paciente e nutricionista, `template_id` com `ON DELETE SET NULL` (só referência), `structure` e `answers` em `text` com JSON, estado, datas de conclusão/reabertura e `deleted_at` (exclusão lógica). Conferida num PostgreSQL descartável em 18/09 (V1–V5 e Hibernate `validate`). **No banco real, roda ao reiniciar a API.**
 
 **Modelos de prontuário (18/09):** a V4 (`V4__create_record_templates.sql`) cria `record_templates` (índice único parcial: um padrão por nutricionista), `record_template_sections` e `record_template_fields`. A chave primária `(template_id, field_code)` garante que o campo aparece uma vez só por modelo; `field_code` aponta para o catálogo em arquivo, sem FK. Conferida num PostgreSQL descartável em 18/09 (V1–V4 e Hibernate `validate`). **No banco real, roda ao reiniciar a API.**
 

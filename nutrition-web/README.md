@@ -127,3 +127,14 @@ Código em `app/records/`: `records-api.ts` (contratos), `template-list.*`, `ofi
 A barra superior tem o nome editável no lugar, o estado ("Tudo salvo" ou "Alterações não salvas"), **Pré-visualizar** (preenchível; nada é salvo nem enviado) e **Salvar**, que envia a estrutura inteira. Um erro 400 abre a seção do campo com problema e o destaca; um 409 oferece recarregar. Abaixo de 1024 px, aparece só o aviso "A Oficina precisa de uma tela maior.". O arrastar e soltar usa o `@angular/cdk`, que já estava no projeto, com `cdkDropListOrientation="mixed"` na grade.
 
 **Validação (18/09):** **110 testes** passando, sendo 14 da Oficina e da lista; `npm run build` também passa. No navegador, contra a API nova num PostgreSQL descartável, foram conferidos: lista, Oficina, arrastar da caixa para a folha, reordenar arrastando, salvar (ordem gravada no banco conferida) e pré-visualização, sem erros no console. O pacote inicial está em 609 kB, acima do aviso de 600 kB do `angular.json`. O crescimento vem do planejamento (renomear e menu das abas de opção); as telas do prontuário já ficam fora do pacote inicial.
+
+## Prontuário por consulta (18/09/2026, entrega 2a)
+
+Especificação: [docs/features/prontuario-consultas.md](../docs/features/prontuario-consultas.md). Código em `app/consultations/`. As telas são carregadas sob demanda:
+
+| Rota | Função |
+|---|---|
+| `/pacientes/:id/consultas` | Lista de consultas do paciente (botão **Consultas** no cadastro): estado, abrir, excluir com confirmação e **Nova consulta** (modelo padrão e hoje pré-selecionados) |
+| `/pacientes/:id/consultas/:consultaId` | Preenchimento: seções em abas com o progresso (respondidas/total), campos na grade do modelo, **Salvar rascunho**, **Concluir** (salva antes o que está na tela) e **Reabrir**. Concluída fica somente leitura. Sair com alterações pede confirmação; erro de campo abre a seção dele; 409 oferece recarregar |
+
+`records/field-control.*` (antes `field-preview`) é o controle de cada tipo de campo, com valor (`model`): estático na folha da Oficina, preenchível e descartável na pré-visualização, e preenchendo as respostas na consulta. O interceptor envia o token também para `/api/consultations`. **118 testes** passando.

@@ -26,6 +26,7 @@ Porta padrão 8081, configurável por `SERVER_PORT`. `mvn spring-boot:run` tamb�
 - `shared`: precisão decimal, erro de cálculo com identificação de campo e `TextSearch` (busca por palavras sem acento/caixa).
 - `api`: tratamento HTTP de erros e `ApiFailure` (erro esperado com status e campo opcional).
 - `record`: prontuário (18/09). Inclui o catálogo de campos (`RecordFieldCatalog`, lido de `resources/records/`) e os modelos de prontuário do nutricionista (`RecordTemplate`, serviço e controller). Ver a seção "Oficina de modelos de prontuário".
+- `consultation`: prontuário por consulta (18/09). Tem a consulta com a estrutura copiada e as respostas em JSON, a validação das respostas por tipo (`AnswerRules`), o serviço e o controller. Ver a seção "Prontuário por consulta".
 
 Cadastro de pacientes não se integra ao planejamento. Não há persistência de dietas nem atividade universal no perfil da calculadora.
 
@@ -281,3 +282,19 @@ Especificação: [docs/features/prontuario-oficina.md](../docs/features/prontuar
 - `textRows` é obrigatório (3, 5 ou 8) em texto longo e proibido nos demais tipos.
 
 **Banco.** A `V4__create_record_templates.sql` cria `record_templates` (com índice único parcial: no máximo um padrão por nutricionista), `record_template_sections` e `record_template_fields`. A chave primária `(template_id, field_code)` garante no banco que o campo aparece uma vez só por modelo. Em 18/09, a V4 e o fluxo completo foram conferidos num PostgreSQL descartável (Flyway V1–V4 e Hibernate `validate`). **No banco real, a V4 roda ao reiniciar a API.**
+
+## Prontuário por consulta (18/09/2026, entrega 2a)
+
+Especificação: [docs/features/prontuario-consultas.md](../docs/features/prontuario-consultas.md). Pacote `consultation`; endpoints autenticados e filtrados pelo nutricionista do token.
+
+| Método | Caminho | Finalidade |
+|---|---|---|
+| GET | `/api/patients/{patientId}/consultations` | Consultas não excluídas, da mais recente para a mais antiga |
+| POST | `/api/patients/{patientId}/consultations` | `{templateId, date}` → 201; copia a estrutura do modelo com a definição de cada campo; paciente arquivado → 400 |
+| GET | `/api/consultations/{id}` | Consulta com `sections` (cópia) e `answers` por código |
+| PUT | `/api/consultations/{id}` | `{date, version, answers}`; só em rascunho; versão diferente → 409 |
+| POST | `/api/consultations/{id}/complete` | `{version}` → `{consultation, patientUpdated}`; sincroniza peso/altura com o cadastro quando a consulta não é mais antiga que as medidas atuais |
+| POST | `/api/consultations/{id}/reopen` | `{version}`; volta a rascunho e registra `reopenedAt` |
+| DELETE | `/api/consultations/{id}` | Nunca concluída: apagada. Já concluída: oculta (`deleted_at`), por causa da guarda de prontuários; regra provisória a confirmar com o CRN |
+
+`AnswerRules` valida e normaliza cada resposta pelo tipo do campo: textos sem espaços nas pontas; número na faixa e nas casas do catálogo (gravado sem notação científica); opções existentes; `other` só quando o campo aceita; linhas vazias de tabela descartadas. Resposta vazia é ausência. Erros vêm em `answers.<código>` (ex.: `answers.appetite.option`). A V5 cria `consultations`, com `structure` e `answers` em JSON (`text`). Em 18/09 foi conferida num PostgreSQL descartável (V1–V5, Hibernate `validate` e o fluxo completo). **309 testes backend** passando, incluindo `AnswerRulesTest` e `ConsultationApiTest`.
